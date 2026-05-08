@@ -21,6 +21,16 @@
 #include "backend/cuda/memcpy.h"
 #include <cuda_runtime.h>
 #endif
+#ifdef BACKEND_VULKAN
+#include "backend/vulkan/arithmetic.h"
+#include "backend/vulkan/normalization.h"
+#include "backend/vulkan/linear.h"
+#include "backend/vulkan/shape.h"
+#include "backend/vulkan/activation.h"
+#include "backend/vulkan/attention.h"
+#include "backend/vulkan/rope.h"
+#include "backend/vulkan/memcpy.h"
+#endif
 
 namespace {
 #ifdef BACKEND_CUDA

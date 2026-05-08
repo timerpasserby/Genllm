@@ -114,6 +114,7 @@ void Executor::forward() {
         }
         t->data = it->second.data;
         t->offset = 0;
+        t->device_handle = 0;
     }
     // Phase 1: persistent ops（rope_cos/sin）
     if (!this->persistent_computed_) {
@@ -437,6 +438,7 @@ void Executor::allocate_output(Tensor* t,int32_t dev_id ) {
     MemoryBlock block = pool->allocate(nbytes, 64);
     t->data = block.ptr;
     t->offset = block.offset;
+    t->device_handle = block.device_handle;
 }
 
 void Executor::execute_view(Tensor* t) {
@@ -447,6 +449,7 @@ void Executor::execute_view(Tensor* t) {
     }
     t->data = src->data;
     t->offset = src->offset;
+    t->device_handle = src->device_handle;
 }
 
 void Executor::dispatch_kernel(Tensor* t,int32_t dev_id) {

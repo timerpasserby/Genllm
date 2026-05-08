@@ -121,9 +121,10 @@ if(BACKEND_SYCL)
 
 endif()
 if(BACKEND_VULKAN)
-    file(GLOB_RECURSE VULKAN_OPS_SOURCES 
+    file(GLOB_RECURSE VULKAN_OPS_SOURCES
         "${PROJECT_SOURCE_DIR}/src/backend/vulkan/*.cpp"
         "${PROJECT_SOURCE_DIR}/src/backend/backend_vulkan.cpp"
+        "${PROJECT_SOURCE_DIR}/src/core/resource_vulkan.cpp"
     )
     list(APPEND SRC_FILES ${VULKAN_OPS_SOURCES})
 endif()

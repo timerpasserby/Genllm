@@ -80,6 +80,9 @@ void dispatchOp(Device device, Fn&& fn) {
     #ifdef BACKEND_CUDA
         case Device::CUDA: fn.template operator()<Device::CUDA>(); break;
     #endif
+    #ifdef BACKEND_VULKAN
+        case Device::VULKAN: fn.template operator()<Device::VULKAN>(); break;
+    #endif
         default: throw std::runtime_error(std::format("device::dispatchOp: unsupported device {}", device_to_string(device)));
     }
 }

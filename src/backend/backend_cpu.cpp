@@ -1,4 +1,5 @@
 #include "backend/backend.h"
+#include <cstddef>
 #include <fstream>
 #include <unordered_set>
 
@@ -8,8 +9,9 @@
 
 BackendInfo CPUBackendProvider::get_backend_info(int device_id) const {
     size_t total = get_system_memory();
-    size_t used = get_system_used_memory(); 
-    return BackendInfo{0, Device::CPU, total, used, 20, 0};
+    size_t available = get_system_available_memory(); 
+    size_t used = get_system_memory() - available;
+    return BackendInfo{0, total, used, 0, 0, Device::CPU};
 }
 
 size_t CPUBackendProvider::get_system_memory() {
@@ -30,7 +32,7 @@ size_t CPUBackendProvider::get_system_memory() {
     #endif
 }
 
-size_t CPUBackendProvider::get_system_used_memory() {
+size_t CPUBackendProvider::get_system_available_memory() {
     #if defined(_WIN32)
         MEMORYSTATUSEX status;
         status.dwLength = sizeof(status);

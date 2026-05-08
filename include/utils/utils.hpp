@@ -7,7 +7,8 @@ enum class Device: uint8_t {
     CPU = 0,
     CUDA = 1,
     SYCL = 3,
-    VULKAN = 4
+    VULKAN = 4,
+    UNKNOWN = 255
 };
 constexpr auto operator<=>(Device lhs, Device rhs) noexcept {
     return static_cast<uint8_t>(lhs) <=> static_cast<uint8_t>(rhs);
@@ -300,7 +301,7 @@ inline std::string device_to_string(Device dev) {
         case Device::CPU: return "CPU";
         case Device::CUDA: return "CUDA";
         case Device::SYCL: return "SYCL";
-        case Device::VULKAN: return "VULKAN";
-        default: return "UNKNOWN";
+        case Device::VULKAN: return "Vulkan";
+        default: return "Unknown";
     }
 }

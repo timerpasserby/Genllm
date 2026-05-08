@@ -10,13 +10,14 @@ void GraphScheduler::schedule(const std::vector<BackendInfo>& devices) {
 
     // 1. 估算每层内存开销（激活缓存 + 权重 + KV cache）
     std::vector<LayerCost> costs = this->estimate_layer_costs(this->graph_); 
+
     if (costs.empty()) {
         std::println("[Scheduler] No transformer layers found, nothing to schedule");
         return;
     }
-    this->assignments_ = this->assign_layers(costs, devices); // 2. 分配连续层到设备
+    this->assignments_ = this->assign_layers(costs, devices);                       // 2. 分配连续层到设备
 
-    this->apply_assignment(this->graph_, this->assignments_); // 实际进行设备分配
+    this->apply_assignment(this->graph_, this->assignments_);   // 3.实际进行设备分配
     
     Device cpu = Device::CPU;
     for (const auto& d : devices) {
@@ -25,13 +26,14 @@ void GraphScheduler::schedule(const std::vector<BackendInfo>& devices) {
             break; 
         }
     }
-    this->assign_global_nodes(this->graph_, cpu); // 4. 添加全局节点，如rope_sin / cos
-    this->insert_copy_edges(this->graph_);         // 为跨设备情况添加拷贝节点
-    this->create_memory_pools(this->graph_, devices); // 创建内存池
-    this->initialize_kv_cache();                       // 初始化 KV cache 的 page table
+    this->assign_global_nodes(this->graph_, cpu);   // 4. 添加全局节点，如rope_sin / cos
+    this->insert_copy_edges(this->graph_);          // 5. 为跨设备情况添加拷贝节点
+
+
+    this->create_memory_pools(this->graph_, devices); // 6. 创建内存池
+    this->initialize_kv_cache();                            //  7.初始化 KV cache 的 page table
     this->print_summary(costs, devices);
 }
-// ========== 1. 估算每层内存开销 ==========
 std::vector<GraphScheduler::LayerCost> GraphScheduler::estimate_layer_costs(const std::unique_ptr<ComputeGraph>& graph) const {
     const auto& all = graph->get_all_tensors();
     const auto& groups = graph->get_layer_groups();

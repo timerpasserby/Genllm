@@ -41,6 +41,7 @@ public:
     }
     [[nodiscard]] Device device() const { return resource_->device(); }
     [[nodiscard]] size_t device_id() const { return resource_->id(); }
+    [[nodiscard]] size_t device_handle() const { return resource_->device_handle(); }
     [[nodiscard]] const std::string& name() const { return name_; }
 };
 

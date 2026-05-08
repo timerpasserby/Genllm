@@ -138,6 +138,7 @@ void MemoryManager::load_weights(GGUFParser& parser, const ComputeGraph& graph) 
             parser.read_tensor_data(entry.gguf_offset, block.ptr, size, entry.tensor);
             entry.tensor->data = block.ptr;
             entry.tensor->offset = block.offset;
+            entry.tensor->device_handle = block.device_handle;
         }
     }
 
@@ -156,6 +157,7 @@ void MemoryManager::load_weights(GGUFParser& parser, const ComputeGraph& graph) 
             cudaMemcpy(block.ptr, staging.data(), size, cudaMemcpyHostToDevice);
             entry.tensor->data = block.ptr;
             entry.tensor->offset = block.offset;
+            entry.tensor->device_handle = block.device_handle;
         }
     }
 #else

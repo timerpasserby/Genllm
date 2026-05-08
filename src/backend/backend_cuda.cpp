@@ -86,11 +86,11 @@ BackendInfo CUDABackendProvider::get_backend_info(int device_id) const {
 
     return BackendInfo{
         static_cast<size_t>(device_id),
-        Device::CUDA,
         total_memory,
         used_memory,
         compute_power,
-        bandwidth
+        bandwidth,
+        Device::CUDA,
     };
 }
 

@@ -33,6 +33,7 @@ MemoryBlock MemoryPool::allocate(size_t size, size_t alignment) {
     block.ptr = static_cast<char*>(this->buffer_) + aligned_cursor;
     block.size = size;
     block.offset = aligned_cursor;
+    block.device_handle = resource_->device_handle();
 
 
     this->cursor_ = aligned_cursor + size;

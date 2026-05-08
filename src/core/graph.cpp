@@ -16,7 +16,8 @@ void ComputeGraph::reverse_bfs_collect(const std::vector<Tensor*>& seeds) {
         if (t && visited.insert(t).second) q.push(t);
     }
     while (!q.empty()) {
-        Tensor* cur = q.front(); q.pop();
+        Tensor* cur = q.front(); 
+        q.pop();
         all_tensors_.push_back(cur);
         for (int i = 0; i < TENSOR_MAX_SRC; ++i) {
             if (cur->src[i] && visited.insert(cur->src[i]).second)
@@ -122,6 +123,8 @@ void ComputeGraph::build_from_outputs(std::initializer_list<Tensor*> outputs) {
     this->external_outputs_.assign(outputs);
     this->reverse_bfs_collect(external_outputs_);
     this->topological_sort();
+    // 将所有的节点的设备设置为未知,因为还没有分配设备
+    for (auto* t : all_tensors_) t->device = Device::UNKNOWN;
 }
 
 void ComputeGraph::clear() {
