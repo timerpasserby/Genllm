@@ -1,7 +1,5 @@
 #pragma once
-#include "tensor.hpp"
-#include "utils/bfloat16.hpp"
-#include <chrono>
+
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -10,8 +8,14 @@
 #include <format>
 #include <print>
 #include <cstring>
+#include "tensor.hpp"
+#include "utils/bfloat16.hpp"
+
 #ifdef BACKEND_CUDA
 #include <cuda_runtime.h>
+#endif
+#ifdef BACKEND_VULKAN
+#include "backend/vulkan/vulkan_context.h"
 #endif
 
 // ANSI 颜色代码
@@ -103,7 +107,7 @@ namespace ops{
             std::println("Tensor(nullptr)");
             return;
         }
-        if (!t->data) {
+        if (!t->data && t->device_handle == 0) {
             std::println(" [data is null]");
             return;
         }
@@ -149,8 +153,25 @@ namespace ops{
                 cudaMemcpy(device_copy.get(), t->data, nbytes, cudaMemcpyDeviceToHost);
     #endif
                 break;
-            case Device::SYCL:
             case Device::VULKAN:
+    #ifdef BACKEND_VULKAN
+                {
+                    auto& ctx = VulkanContext::get();
+                    int vk_dev = 0;
+                    vk::DeviceMemory staging_mem;
+                    void* staging_mapped;
+                    vk::Buffer staging_buf = ctx.createStagingBuffer(
+                        vk_dev, nbytes, &staging_mem, &staging_mapped);
+                    vk::CommandBuffer cmd = ctx.beginCommandBuffer(vk_dev);
+                    vk::BufferCopy region(t->offset, 0, nbytes);
+                    cmd.copyBuffer(
+                        static_cast<VkBuffer>(reinterpret_cast<void*>(t->device_handle)),
+                        staging_buf, region);
+                    ctx.endSubmitAndWait(vk_dev, cmd);
+                    std::memcpy(device_copy.get(), staging_mapped, nbytes);
+                    ctx.destroyStagingBuffer(vk_dev, staging_buf, staging_mem, staging_mapped);
+                }
+    #endif
                 break;
             default:
                 break;

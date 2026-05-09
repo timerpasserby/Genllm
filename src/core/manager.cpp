@@ -6,6 +6,9 @@
 #ifdef BACKEND_CUDA
 #include <cuda_runtime.h>
 #endif
+#ifdef BACKEND_VULKAN
+#include "backend/vulkan/vulkan_context.h"
+#endif
 
 #include "core/manager.h"
 
@@ -28,6 +31,10 @@ std::unique_ptr<IMemoryResource> MemoryManager::make_resource(Device dev, size_t
     #ifdef BACKEND_CUDA
         case Device::CUDA:
             return std::make_unique<CudaMemoryResource>(static_cast<int>(dev_id));
+    #endif
+    #ifdef BACKEND_VULKAN
+        case Device::VULKAN:
+            return std::make_unique<VulkanMemoryResource>(static_cast<int>(dev_id));
     #endif
         default:    throw std::runtime_error(std::format("MemoryManager: unsupported device {}", static_cast<int>(dev)));
     }
@@ -146,6 +153,7 @@ void MemoryManager::load_weights(GGUFParser& parser, const ComputeGraph& graph) 
     if (!gpu_weights.empty()) {
         std::vector<char> staging;
         for (auto& entry : gpu_weights) {
+            if (entry.tensor->device != Device::CUDA) continue;
             size_t size = entry.tensor->bytes();
             DevicePools* pools = this->get(entry.tensor->device, 0);
             if (!pools || !pools->weight) {
@@ -160,10 +168,46 @@ void MemoryManager::load_weights(GGUFParser& parser, const ComputeGraph& graph) 
             entry.tensor->device_handle = block.device_handle;
         }
     }
-#else
+#endif
+#ifdef BACKEND_VULKAN
+    if (!gpu_weights.empty()) {
+        auto& ctx = VulkanContext::get();
+        for (auto& entry : gpu_weights) {
+            if (entry.tensor->device != Device::VULKAN) continue;
+            size_t size = entry.tensor->bytes();
+            int vk_dev = 0;
+            DevicePools* pools = this->get(Device::VULKAN, vk_dev);
+            if (!pools || !pools->weight) {
+                throw std::runtime_error(std::format(
+                    "load_weights: no weight pool for Vulkan tensor {}", entry.tensor->name));
+            }
+            MemoryBlock block = pools->weight->allocate(size, 32);
+
+            vk::DeviceMemory staging_mem;
+            void* staging_mapped;
+            vk::Buffer staging_buf = ctx.createStagingBuffer(vk_dev, size, &staging_mem, &staging_mapped);
+
+            parser.read_tensor_data(entry.gguf_offset, staging_mapped, size, entry.tensor);
+
+            vk::CommandBuffer cmd = ctx.beginCommandBuffer(vk_dev);
+            vk::BufferCopy region(0, block.offset, size);
+            cmd.copyBuffer(staging_buf,
+                           static_cast<VkBuffer>(reinterpret_cast<void*>(block.device_handle)),
+                           region);
+            ctx.endSubmitAndWait(vk_dev, cmd);
+
+            ctx.destroyStagingBuffer(vk_dev, staging_buf, staging_mem, staging_mapped);
+
+            entry.tensor->data = block.ptr;
+            entry.tensor->offset = block.offset;
+            entry.tensor->device_handle = block.device_handle;
+        }
+    }
+#endif
+#if !defined(BACKEND_CUDA) && !defined(BACKEND_VULKAN)
     if (!gpu_weights.empty()) {
         throw std::runtime_error(std::format(
-            "load_weights: {} GPU weights found but CUDA backend is not enabled",
+            "load_weights: {} GPU weights found but no GPU backend is enabled",
             gpu_weights.size()));
     }
 #endif

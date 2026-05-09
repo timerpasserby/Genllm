@@ -2,6 +2,8 @@
 #include <cuda_runtime.h>
 #include <array>
 
+
+
 bool CUDABackendProvider::is_available() const {
     int count = 0;
     cudaError_t err = cudaGetDeviceCount(&count);
@@ -92,6 +94,19 @@ BackendInfo CUDABackendProvider::get_backend_info(int device_id) const {
         bandwidth,
         Device::CUDA,
     };
+}
+
+void CUDABackendProvider::print_device_info(int device_id) const {
+    auto info = get_backend_info(device_id);
+    std::println("  Device Name:        {}", get_device_name(device_id));
+    std::println("  Compute Capability: {}.{}", get_sm_version(device_id) / 10, get_sm_version(device_id) % 10);
+    std::println("  Global Memory:      {:.1f} GB", static_cast<double>(info.total_memory) / (1ULL << 30));
+    std::println("  Available Memory:   {:.1f} GB", static_cast<double>(info.available_memory()) / (1ULL << 30));
+    std::println("  Max threads/block:  {}", get_max_threads_per_block(device_id));
+    auto bd = get_max_block_dims(device_id);
+    std::println("  Max block dims:     [{}, {}, {}]", bd[0], bd[1], bd[2]);
+    auto gs = get_max_grid_size(device_id);
+    std::println("  Max grid size:      [{}, {}, {}]", gs[0], gs[1], gs[2]);
 }
 
 static struct CUDABackendProviderRegistrar {

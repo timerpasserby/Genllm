@@ -15,7 +15,7 @@ void GraphScheduler::schedule(const std::vector<BackendInfo>& devices) {
         std::println("[Scheduler] No transformer layers found, nothing to schedule");
         return;
     }
-    this->assignments_ = this->assign_layers(costs, devices);                       // 2. 分配连续层到设备
+    this->assignments_ = this->assign_layers(costs, devices);   // 2. 分配连续层到设备
 
     this->apply_assignment(this->graph_, this->assignments_);   // 3.实际进行设备分配
     
@@ -51,8 +51,6 @@ std::vector<GraphScheduler::LayerCost> GraphScheduler::estimate_layer_costs(cons
     }
     std::unordered_map<int, size_t> weight_map;
     for (auto* t : all) {
-        // if (t->layer_id < 0) 
-            // continue;
         if (t->type != TensorType::TENSOR_TYPE_WEIGHT) 
             continue;
         weight_map[t->layer_id] += t->bytes();

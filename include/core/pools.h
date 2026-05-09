@@ -51,20 +51,16 @@ struct DevicePools {
     std::unique_ptr<MemoryPool> kv_cache;
     void reset_activation() {
         if (activation) {
-#ifndef __CUDACC__
             std::println("Reset activation pool on dev {}",activation->format_usage());
-#endif
             activation->reset();
         }
     }
     void print_usage() const {
-#ifndef __CUDACC__
         if (weight) 
             std::println("  weight:     {}", weight->format_usage());
         if (activation) 
             std::println("  activation: {}", activation->format_usage());
         if (kv_cache) 
             std::println("  kv_cache:   {}", kv_cache->format_usage());
-#endif
     }
 };

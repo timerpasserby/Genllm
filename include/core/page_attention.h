@@ -8,7 +8,6 @@
 
 constexpr int32_t PAGE_BLOCK_SIZE = 16;
 
-
 class BlockPool {
 public:
     BlockPool() = default;

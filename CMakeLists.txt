@@ -15,7 +15,7 @@ option(BUILD_TEST      "build test file with ./tests/*.cpp" OFF)
 option(BACKEND_CPU     "Enable CPU backend" OFF)
 option(BACKEND_CUDA    "Enable CUDA backend" OFF)
 option(BACKEND_SYCL    "Enable SYCL backend" OFF)
-option(BACKEND_VULKAN  "Enable Vulkan backend" OFF)
+option(BACKEND_VULKAN  "Enable Vulkan backend" ON)
 
 # 检查是否启用了至少一个后端
 if(NOT BACKEND_CPU AND NOT BACKEND_CUDA AND NOT BACKEND_SYCL AND NOT BACKEND_VULKAN)

@@ -21,22 +21,21 @@ int main() {
 
     // graph->export_dot("qwen3-graph.dot");
 
-
     GraphScheduler::Config sched_cfg{
         .vocab_size = model->vocab_size(),
         .max_seq_len = 8192,            // 上下文长度。主要影响激活池大小，kv-cache池影响有限
         .top_p = 0.9f,                  // 采样时的 top-p 参数，越大越保守，越小越激进
         .temperature = 0.5f,            // 采样时的 temperature 越大越随机，越小越确定。0 表示贪心采样。
         .memory_headroom = 0.05f,        // 内存头部空间，预留给临时峰值，避免频繁 OOM
-        .kv_cache_pool_factor = 1.05f,  // 缓存内存池大小 = 实际激活内存需求 * activation_pool_factor。比实际需求大一点点，避免可能的OOM
-        .activation_pool_factor = 1.05f // 激活内存池大小 = 实际激活内存需求 * activation_pool_factor。比实际需求大一点点，避免可能的OOM
+        .kv_cache_pool_factor = 1.0f,  // 缓存内存池大小 = 实际激活内存需求 * activation_pool_factor。比实际需求大一点点，避免可能的OOM
+        .activation_pool_factor = 1.0f // 激活内存池大小 = 实际激活内存需求 * activation_pool_factor。比实际需求大一点点，避免可能的OOM
     };
 
     GraphScheduler scheduler(std::move(graph), sched_cfg);
 
     scheduler.schedule(DeviceManager::instance().get_devices());
 
-    // scheduler.export_dot("qwen3-graph.dot");
+    scheduler.export_dot("qwen3-graph.dot");
 
     std::unique_ptr<MemoryManager>& manager = scheduler.mmanager();
 

@@ -54,12 +54,12 @@ std::unique_ptr<ComputeGraph> Qwen3Model::build_graph(const GGUFInfo& info){
     std::println("Building Qwen3 computation graph...");
     // ========== Step 1: 解析配置参数 ==========
     this->parse_config(info);
-    this->config_.num_layers = 1; // 临时 hardcode 层数，方便测试。
+    // this->config_.num_layers = 1; // 临时 hardcode 层数，方便测试。
     //=====================================================================================
-    Tensor* input_ids = OpFactory::placeholder(DataType::GGML_TYPE_I32,TensorType::TENSOR_TYPE_INPUT, {1, -1},"input_ids"); //[B, seq_len]
+    Tensor* input_ids = OpFactory::placeholder(DataType::GGML_TYPE_I32,TensorType::TENSOR_TYPE_INPUT, {1, -1},"input_ids",-1); //[B, seq_len]
 
     // [max_seq_len, head_dim]
-    auto [rope_cos, rope_sin] = OpFactory::rope_cache(config_.max_seq_len, config_.head_dim, config_.rope_theta,DataType::GGML_TYPE_F32); 
+    auto [rope_cos, rope_sin] = OpFactory::rope_cache(config_.max_seq_len, config_.head_dim, config_.rope_theta,DataType::GGML_TYPE_F32,"rope",-1); 
 
     const TensorInfo* embd_weight_info = OpFactory::find_tensor(info, "token_embd.weight"); // [vocab_size, hidden_size]
 

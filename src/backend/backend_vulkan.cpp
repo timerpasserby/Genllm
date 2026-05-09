@@ -9,15 +9,19 @@
 VulkanBackendProvider::VulkanBackendProvider() {
     try {
         ctx_ = &VulkanContext::get();
-        available_ = true;
+        available_ = ctx_->device_count() > 0;
     } catch (const std::exception& e) {
         std::println("VulkanBackendProvider: initialization failed: {}", e.what());
         available_ = false;
     }
 }
 
-bool VulkanBackendProvider::is_available() const { return available_; }
-int VulkanBackendProvider::get_device_count() const { return available_ ? 1 : 0; }
+bool VulkanBackendProvider::is_available() const { 
+    return available_; 
+}
+int VulkanBackendProvider::get_device_count() const { 
+    return available_ ? ctx_->device_count() : 0;
+ }
 
 BackendInfo VulkanBackendProvider::get_backend_info(int device_id) const {
     BackendInfo info;
@@ -26,7 +30,7 @@ BackendInfo VulkanBackendProvider::get_backend_info(int device_id) const {
 
     if (!available_) return info;
 
-    auto phy = ctx_->physical_device();
+    auto phy = ctx_->physical_device(device_id);
     auto mem_props = phy.getMemoryProperties();
 
     size_t total = 0;
@@ -46,7 +50,7 @@ BackendInfo VulkanBackendProvider::get_backend_info(int device_id) const {
 void VulkanBackendProvider::print_device_info(int device_id) const {
     if (!available_) return;
 
-    auto phy = ctx_->physical_device();
+    auto phy = ctx_->physical_device(device_id);
     auto props = phy.getProperties();
     auto mem_props = phy.getMemoryProperties();
 

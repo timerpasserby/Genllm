@@ -9,9 +9,18 @@
 
 BackendInfo CPUBackendProvider::get_backend_info(int device_id) const {
     size_t total = get_system_memory();
-    size_t available = get_system_available_memory(); 
+    size_t available = get_system_available_memory();
     size_t used = get_system_memory() - available;
     return BackendInfo{0, total, used, 0, 0, Device::CPU};
+}
+
+void CPUBackendProvider::print_device_info(int device_id) const {
+    auto info = get_backend_info(device_id);
+    std::println("  Device Name:       {}", get_cpu_name());
+    std::println("  Physical Cores:    {}", get_physical_cores());
+    std::println("  Logical Threads:   {}", get_thread_count());
+    std::println("  System Memory:     {:.1f} GB", static_cast<double>(info.total_memory) / (1ULL << 30));
+    std::println("  Available Memory:  {:.1f} GB", static_cast<double>(info.available_memory()) / (1ULL << 30));
 }
 
 size_t CPUBackendProvider::get_system_memory() {

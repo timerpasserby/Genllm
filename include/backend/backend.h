@@ -29,6 +29,7 @@ struct BackendInfo {
 class BackendProvider {
 public:
     virtual ~BackendProvider() = default;
+    virtual void print_device_info(int device_id) const = 0;
     [[nodiscard]] virtual bool is_available() const = 0;
     [[nodiscard]] virtual int get_device_count() const = 0;
     [[nodiscard]] virtual Device get_backend_type() const = 0;
@@ -40,7 +41,7 @@ public:
 class BackendRegistry {
 private:
     BackendRegistry() = default;
-    std::vector<std::unique_ptr<BackendProvider>> providers_; // CPUBackendProvider,CUDABackendProvider
+    std::vector<std::unique_ptr<BackendProvider>> providers_;
 public:
     BackendRegistry(const BackendRegistry&) = delete;
     BackendRegistry& operator=(const BackendRegistry&) = delete;
@@ -68,6 +69,7 @@ public:
     [[nodiscard]] Device get_backend_type() const override { return Device::CPU; }
     [[nodiscard]] const char* get_backend_name() const override { return "CPU"; }
     [[nodiscard]] BackendInfo get_backend_info(int device_id) const override;
+    void print_device_info(int device_id) const override;
     [[nodiscard]] static size_t get_system_memory();
     [[nodiscard]] static size_t get_system_available_memory();
     [[nodiscard]] static std::string get_cpu_name();
@@ -88,6 +90,8 @@ public:
     [[nodiscard]] static int get_max_threads_per_block(int device_id);
     [[nodiscard]] static std::array<int, 3> get_max_block_dims(int device_id);
     [[nodiscard]] static std::array<int, 3> get_max_grid_size(int device_id);
+    void print_device_info(int device_id) const;
+
 };
 #endif
 
@@ -101,7 +105,7 @@ public:
     [[nodiscard]] Device get_backend_type() const override { return Device::VULKAN; }
     [[nodiscard]] const char* get_backend_name() const override { return "Vulkan"; }
     [[nodiscard]] BackendInfo get_backend_info(int device_id) const override;
-    void print_device_info(int device_id) const;
+    void print_device_info(int device_id) const override;
 private:
     VulkanContext* ctx_ = nullptr;
     bool available_ = false;
@@ -142,49 +146,7 @@ public:
             for (int i = 0; i < provider->get_device_count(); ++i) {
                 auto info = provider->get_backend_info(i);
                 std::print("[{}] {}  Memory: {:.1f} GB", info.id, provider->get_backend_name(),static_cast<double>(info.total_memory) / (1ULL << 30));
-            }
-            if (provider->get_backend_type() == Device::CPU) {
-                auto* cpu = static_cast<const CPUBackendProvider*>(provider.get());
-                auto info = provider->get_backend_info(0);
-                std::println("");
-                std::println("  Device Name:       {}", cpu->get_cpu_name());
-                std::println("  Physical Cores:    {}", cpu->get_physical_cores());
-                std::println("  Logical Threads:   {}", cpu->get_thread_count());
-                std::println("  System Memory:     {:.1f} GB", static_cast<double>(info.total_memory) / (1ULL << 30));
-                std::println("  Available Memory:  {:.1f} GB", static_cast<double>(info.available_memory()) / (1ULL << 30));
-#ifdef BACKEND_CUDA
-            } else if (provider->get_backend_type() == Device::CUDA) {
-                std::println("");
-                auto* cuda = static_cast<const CUDABackendProvider*>(provider.get());
-                for (int i = 0; i < provider->get_device_count(); ++i) {
-                    auto info = provider->get_backend_info(0);
-
-                    std::println("  Device Name:        {}", CUDABackendProvider::get_device_name(i));
-                    std::println("  Compute Capability: {}.{}", CUDABackendProvider::get_sm_version(i) / 10, CUDABackendProvider::get_sm_version(i) % 10);
-                    std::println("  Global Memory:      {:.1f} GB",  static_cast<double>(info.total_memory) / (1ULL << 30));
-                    std::println("  Available Memory:   {:.1f} GB", static_cast<double>(info.available_memory()) / (1ULL << 30));
-                    std::println("  Max threads/block:  {}", cuda->get_max_threads_per_block(i));
-                    std::println("  Max block dims:     [{}, {}, {}]",
-                        cuda->get_max_block_dims(i)[0],
-                        cuda->get_max_block_dims(i)[1],
-                        cuda->get_max_block_dims(i)[2]);
-                    std::println("  Max grid size:      [{}, {}, {}]",
-                        cuda->get_max_grid_size(i)[0],
-                        cuda->get_max_grid_size(i)[1],
-                        cuda->get_max_grid_size(i)[2]);
-                    if (i + 1 < provider->get_device_count()) std::println("");
-                }
-#endif
-#ifdef BACKEND_VULKAN
-            } else if (provider->get_backend_type() == Device::VULKAN) {
-                std::println("");
-                auto* vk = static_cast<const VulkanBackendProvider*>(provider.get());
-                for (int i = 0; i < provider->get_device_count(); ++i) {
-                    vk->print_device_info(i);
-                }
-#endif
-            } else {
-                std::println("");
+                provider->print_device_info(i);
             }
         }
         std::println("================================================================");

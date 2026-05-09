@@ -443,7 +443,7 @@ void Executor::allocate_output(Tensor* t,int32_t dev_id ) {
 
 void Executor::execute_view(Tensor* t) {
     Tensor* src = t->src[0];
-    if (!src || !src->data) {
+    if (!src || (!src->data && src->device_handle == 0)) {
         throw std::runtime_error(std::format(
             "Executor::view: source of '{}' has no data", t->name));
     }

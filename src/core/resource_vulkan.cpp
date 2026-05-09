@@ -9,24 +9,19 @@
 VulkanMemoryResource::VulkanMemoryResource(int device_id)
     : device_id_(device_id)
 {
-    auto& ctx = VulkanContext::get(device_id);
-    device_ = ctx.device();
-    buffer_ = nullptr;
-    memory_ = nullptr;
-    buffer_handle_ = 0;
+    auto& ctx = VulkanContext::get();
+    device_ = ctx.device(device_id_);
 }
 
 VulkanMemoryResource::~VulkanMemoryResource() {
-    if (buffer_) {
-        device_.destroyBuffer(buffer_);
-    }
-    if (memory_) {
-        device_.freeMemory(memory_);
-    }
+    if (buffer_) device_.destroyBuffer(buffer_);
+    if (memory_) device_.freeMemory(memory_);
 }
 
 void* VulkanMemoryResource::allocate(size_t size, size_t alignment) {
     if (size == 0) return nullptr;
+
+    auto& ctx = VulkanContext::get();
 
     vk::BufferCreateInfo buf_info(
         {}, size,
@@ -43,9 +38,8 @@ void* VulkanMemoryResource::allocate(size_t size, size_t alignment) {
     }
 
     auto mem_reqs = device_.getBufferMemoryRequirements(buffer_);
+    auto mem_props = ctx.physical_device(device_id_).getMemoryProperties();
 
-    // Find device-local memory type
-    auto mem_props = VulkanContext::get(device_id_).physical_device().getMemoryProperties();
     uint32_t mem_type_idx = UINT32_MAX;
     for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i) {
         if ((mem_reqs.memoryTypeBits & (1 << i)) &&
@@ -67,10 +61,8 @@ void* VulkanMemoryResource::allocate(size_t size, size_t alignment) {
     }
 
     device_.bindBufferMemory(buffer_, memory_, 0);
-
     buffer_handle_ = reinterpret_cast<size_t>(static_cast<VkBuffer>(buffer_));
 
-    // device-local memory has no host-accessible pointer
     return nullptr;
 }
 
