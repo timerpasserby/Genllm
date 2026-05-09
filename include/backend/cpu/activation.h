@@ -9,17 +9,17 @@ namespace ops {
 
     template <>
     struct SiluImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct GeluImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct ReluImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     extern template struct SiluImpl<Device::CPU>;

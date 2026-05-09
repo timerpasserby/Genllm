@@ -8,7 +8,7 @@
 
 namespace ops {
 
-    void SoftmaxImpl<Device::CPU>::execute(Tensor* out) {
+    void SoftmaxImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x = out->src[0];
         dtype::dispatch(out->dtype, [&]<DataType D>() {
             using T = dtype::type_t<D>;
@@ -35,7 +35,7 @@ namespace ops {
         });
     }
 
-    void DiagMaskInfImpl<Device::CPU>::execute(Tensor* out) {
+    void DiagMaskInfImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x = out->src[0];
         int64_t seq = x->dims[0];
         dtype::dispatch(out->dtype, [&]<DataType D>() {
@@ -51,7 +51,7 @@ namespace ops {
         });
     }
 
-    void AttentionImpl<Device::CPU>::execute(Tensor* out) {
+    void AttentionImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* Q = out->src[0];  // [batch, num_heads, seq_len_q, head_dim]      ,[1,16,4,128]
         const Tensor* K = out->src[1];  // [batch, num_kv_heads, seq_len_kv, head_dim]  ,[1,8,4,128]
         const Tensor* V = out->src[2];  // [batch, num_kv_heads, seq_len_kv, head_dim]  ,[1,8,4,128]
@@ -232,7 +232,7 @@ namespace ops {
         }
     }
 
-    void FlashAttentionImpl<Device::CPU>::execute(Tensor* out) {
+    void FlashAttentionImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         auto* mgr = g_mem_manager->get_attention_manager(out->device,0);
 
         int32_t layer_id = out->layer_id;

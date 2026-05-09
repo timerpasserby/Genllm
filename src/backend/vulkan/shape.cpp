@@ -3,16 +3,16 @@
 
 namespace ops {
 
-void ReshapeImpl<Device::VULKAN>::execute(Tensor* out) {
+void ReshapeImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan ReshapeImpl: not implemented");
 }
-void PermuteImpl<Device::VULKAN>::execute(Tensor* out) {
+void PermuteImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan PermuteImpl: not implemented");
 }
-void ConcatImpl<Device::VULKAN>::execute(Tensor* out) {
+void ConcatImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan ConcatImpl: not implemented");
 }
-void RepeatImpl<Device::VULKAN>::execute(Tensor* out) {
+void RepeatImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan RepeatImpl: not implemented");
 }
 

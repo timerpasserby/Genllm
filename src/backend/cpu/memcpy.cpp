@@ -5,7 +5,7 @@
 
 namespace ops {
 
-    void MemcpyImpl<Device::CPU>::execute(Tensor* out) {
+    void MemcpyImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         Tensor* src = out->src[0];
         if (!src || !src->data) {
             throw std::runtime_error("MemcpyImpl<CPU>: source tensor has no data");

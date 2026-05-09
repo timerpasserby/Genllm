@@ -16,7 +16,8 @@ __global__ void add_kernel(const T* __restrict__ input1,const T* __restrict__ in
     }
 }
 
-void AddImpl<Device::CUDA>::execute(Tensor* t) { 
+void AddImpl<Device::CUDA>::execute(Tensor* t, int32_t dev_id) { 
+    cudaSetDevice(dev_id);
     const Tensor* x = t->src[0];
 
     constexpr int threads = 256;
@@ -52,7 +53,7 @@ __global__ void sub_kernel(const T* __restrict__ input1,const T* __restrict__ in
         output[glob_id] = input1[glob_id] - input2[glob_id];
     }
 }
-void SubImpl<Device::CUDA>::execute(Tensor* t){
+void SubImpl<Device::CUDA>::execute(Tensor* t, int32_t dev_id){
     const Tensor* x = t->src[0];
 
     constexpr int threads = 256;
@@ -89,7 +90,7 @@ __global__ void mul_kernel(const T* __restrict__ input1,const T* __restrict__ in
         output[glob_id] = input1[glob_id] * input2[glob_id];
     }
 }
-void MulImpl<Device::CUDA>::execute(Tensor* t){
+void MulImpl<Device::CUDA>::execute(Tensor* t, int32_t dev_id){
     const Tensor* x = t->src[0];
 
     constexpr int threads = 256;
@@ -126,7 +127,7 @@ __global__ void div_kernel(const T* __restrict__ input1,const T* __restrict__ in
         output[glob_id] = input1[glob_id] / input2[glob_id];
     }
 }
-void DivImpl<Device::CUDA>::execute(Tensor* t){
+void DivImpl<Device::CUDA>::execute(Tensor* t, int32_t dev_id){
     const Tensor* x = t->src[0];
 
     constexpr int threads = 256;

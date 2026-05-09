@@ -70,7 +70,7 @@ namespace {
     }
 } // anonymous namespace
 
-void LinearImpl<Device::CUDA>::execute(Tensor* out){
+void LinearImpl<Device::CUDA>::execute(Tensor* out, int32_t dev_id){
     const Tensor* x    = out->src[0]; // [B, M, K]
     const Tensor* w    = out->src[1]; // [K, N] or [N, K]
     const Tensor* bias = out->src[2];
@@ -124,8 +124,8 @@ void LinearImpl<Device::CUDA>::execute(Tensor* out){
     }
 }
 
-void MatmulImpl<Device::CUDA>::execute(Tensor*)    { throw std::runtime_error("cuda::matmul not implemented"); }
-void TransposeImpl<Device::CUDA>::execute(Tensor*) { throw std::runtime_error("cuda::transpose not implemented"); }
+void MatmulImpl<Device::CUDA>::execute(Tensor*, int32_t)    { throw std::runtime_error("cuda::matmul not implemented"); }
+void TransposeImpl<Device::CUDA>::execute(Tensor*, int32_t) { throw std::runtime_error("cuda::transpose not implemented"); }
 
 template struct LinearImpl<Device::CUDA>;
 template struct MatmulImpl<Device::CUDA>;

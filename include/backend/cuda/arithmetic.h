@@ -10,22 +10,22 @@ namespace ops {
 
     template <>
     struct AddImpl<Device::CUDA> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct SubImpl<Device::CUDA> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct MulImpl<Device::CUDA> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct DivImpl<Device::CUDA> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     extern template struct AddImpl<Device::CUDA>;

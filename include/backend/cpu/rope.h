@@ -8,12 +8,12 @@ namespace ops {
 
     template <>
     struct ApplyRopeImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct RopeCacheImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     extern template struct ApplyRopeImpl<Device::CPU>;

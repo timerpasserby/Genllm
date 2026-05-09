@@ -4,7 +4,7 @@
 
 namespace ops {
 
-    void SiluImpl<Device::CPU>::execute(Tensor* out) {
+    void SiluImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x = out->src[0];
         dtype::dispatch(out->dtype, [&]<DataType D>() {
             using T = dtype::type_t<D>;
@@ -18,7 +18,7 @@ namespace ops {
         });
     }
 
-    void GeluImpl<Device::CPU>::execute(Tensor* out) {
+    void GeluImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x = out->src[0];
         dtype::dispatch(out->dtype, [&]<DataType D>() {
             using T = dtype::type_t<D>;
@@ -33,7 +33,7 @@ namespace ops {
         });
     }
 
-    void ReluImpl<Device::CPU>::execute(Tensor* out) {
+    void ReluImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x = out->src[0];
         dtype::dispatch(out->dtype, [&]<DataType D>() {
             using T = dtype::type_t<D>;

@@ -9,12 +9,12 @@ namespace ops {
 
     template <>
     struct RmsNormImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct LayerNormImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     extern template struct RmsNormImpl<Device::CPU>;

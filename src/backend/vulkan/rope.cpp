@@ -3,7 +3,7 @@
 
 namespace ops {
 
-void ApplyRopeImpl<Device::VULKAN>::execute(Tensor* out) {
+void ApplyRopeImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan ApplyRopeImpl: not implemented");
 }
 

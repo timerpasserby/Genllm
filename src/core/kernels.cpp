@@ -32,59 +32,48 @@
 #include "backend/vulkan/memcpy.h"
 #endif
 
-namespace {
-#ifdef BACKEND_CUDA
-    void set_device_for_op(Device dev, int32_t) {
-    }
-#else
-    void set_device_for_op(Device, int32_t) {} // no-op,估计会被编译器优化掉
-#endif
-} // anonymous namespace
-
 namespace kernel {
 
     // ===== arithmetic =====
-    void add(Tensor* t, int32_t dev_id)       { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::AddImpl<D>::execute(t); }); }
-    void sub(Tensor* t, int32_t dev_id)       { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::SubImpl<D>::execute(t); }); }
-    void mul(Tensor* t, int32_t dev_id)       { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::MulImpl<D>::execute(t); }); }
-    void div(Tensor* t, int32_t dev_id)       { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::DivImpl<D>::execute(t); }); }
+    void add(Tensor* t, int32_t dev_id)       { device::dispatchOp(t->device, [&]<Device D>() { ops::AddImpl<D>::execute(t, dev_id); }); }
+    void sub(Tensor* t, int32_t dev_id)       { device::dispatchOp(t->device, [&]<Device D>() { ops::SubImpl<D>::execute(t, dev_id); }); }
+    void mul(Tensor* t, int32_t dev_id)       { device::dispatchOp(t->device, [&]<Device D>() { ops::MulImpl<D>::execute(t, dev_id); }); }
+    void div(Tensor* t, int32_t dev_id)       { device::dispatchOp(t->device, [&]<Device D>() { ops::DivImpl<D>::execute(t, dev_id); }); }
 
     // ===== normalization =====
-    void rms_norm(Tensor* t, int32_t dev_id)  { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::RmsNormImpl<D>::execute(t); }); }
-    void layer_norm(Tensor* t, int32_t dev_id){ set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::LayerNormImpl<D>::execute(t); }); }
+    void rms_norm(Tensor* t, int32_t dev_id)  { device::dispatchOp(t->device, [&]<Device D>() { ops::RmsNormImpl<D>::execute(t, dev_id); }); }
+    void layer_norm(Tensor* t, int32_t dev_id){ device::dispatchOp(t->device, [&]<Device D>() { ops::LayerNormImpl<D>::execute(t, dev_id); }); }
 
     // ===== linear / matmul =====
-    void matmul(Tensor* t, int32_t dev_id)    { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::MatmulImpl<D>::execute(t); }); }
-    void linear(Tensor* t, int32_t dev_id)    { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::LinearImpl<D>::execute(t); }); }
-    void transpose(Tensor* t, int32_t dev_id) { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::TransposeImpl<D>::execute(t); }); }
+    void matmul(Tensor* t, int32_t dev_id)    { device::dispatchOp(t->device, [&]<Device D>() { ops::MatmulImpl<D>::execute(t, dev_id); }); }
+    void linear(Tensor* t, int32_t dev_id)    { device::dispatchOp(t->device, [&]<Device D>() { ops::LinearImpl<D>::execute(t, dev_id); }); }
+    void transpose(Tensor* t, int32_t dev_id) { device::dispatchOp(t->device, [&]<Device D>() { ops::TransposeImpl<D>::execute(t, dev_id); }); }
 
     // ===== shape =====
-    void reshape(Tensor* t, int32_t dev_id)   { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::ReshapeImpl<D>::execute(t); }); }
-    void permute(Tensor* t, int32_t dev_id)   { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::PermuteImpl<D>::execute(t); }); }
+    void reshape(Tensor* t, int32_t dev_id)   { device::dispatchOp(t->device, [&]<Device D>() { ops::ReshapeImpl<D>::execute(t, dev_id); }); }
+    void permute(Tensor* t, int32_t dev_id)   { device::dispatchOp(t->device, [&]<Device D>() { ops::PermuteImpl<D>::execute(t, dev_id); }); }
 
     // ===== activation =====
-    void silu(Tensor* t, int32_t dev_id)      { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::SiluImpl<D>::execute(t); }); }
-    void gelu(Tensor* t, int32_t dev_id)      { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::GeluImpl<D>::execute(t); }); }
-    void relu(Tensor* t, int32_t dev_id)      { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::ReluImpl<D>::execute(t); }); }
+    void silu(Tensor* t, int32_t dev_id)      { device::dispatchOp(t->device, [&]<Device D>() { ops::SiluImpl<D>::execute(t, dev_id); }); }
+    void gelu(Tensor* t, int32_t dev_id)      { device::dispatchOp(t->device, [&]<Device D>() { ops::GeluImpl<D>::execute(t, dev_id); }); }
+    void relu(Tensor* t, int32_t dev_id)      { device::dispatchOp(t->device, [&]<Device D>() { ops::ReluImpl<D>::execute(t, dev_id); }); }
 
     // ===== attention =====
-    void softmax(Tensor* t, int32_t dev_id)        { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::SoftmaxImpl<D>::execute(t); }); }
-    void diag_mask_inf(Tensor* t, int32_t dev_id)  { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::DiagMaskInfImpl<D>::execute(t); }); }
-    void sdpa(Tensor* t, int32_t dev_id)           { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::SdpaImpl<D>::execute(t, dev_id); }); }
-    void attention(Tensor* t, int32_t dev_id)      { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::AttentionImpl<D>::execute(t); }); }
-    void flash_attention(Tensor* t, int32_t dev_id){ set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::FlashAttentionImpl<D>::execute(t); }); }
+    void softmax(Tensor* t, int32_t dev_id)        { device::dispatchOp(t->device, [&]<Device D>() { ops::SoftmaxImpl<D>::execute(t, dev_id); }); }
+    void diag_mask_inf(Tensor* t, int32_t dev_id)  { device::dispatchOp(t->device, [&]<Device D>() { ops::DiagMaskInfImpl<D>::execute(t, dev_id); }); }
+    void sdpa(Tensor* t, int32_t dev_id)           { device::dispatchOp(t->device, [&]<Device D>() { ops::SdpaImpl<D>::execute(t, dev_id); }); }
+    void attention(Tensor* t, int32_t dev_id)      { device::dispatchOp(t->device, [&]<Device D>() { ops::AttentionImpl<D>::execute(t, dev_id); }); }
+    void flash_attention(Tensor* t, int32_t dev_id){ device::dispatchOp(t->device, [&]<Device D>() { ops::FlashAttentionImpl<D>::execute(t, dev_id); }); }
 
     // ===== embedding =====
     void embedding(Tensor* t, int32_t dev_id){
-        set_device_for_op(t->device, dev_id);
-        ops::EmbeddingImpl<Device::CPU>::execute(t);
+        ops::EmbeddingImpl<Device::CPU>::execute(t, dev_id);
     }
 
     // ===== rope =====
-    void apply_rope(Tensor* t, int32_t dev_id)     { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::ApplyRopeImpl<D>::execute(t); }); }
+    void apply_rope(Tensor* t, int32_t dev_id)     { device::dispatchOp(t->device, [&]<Device D>() { ops::ApplyRopeImpl<D>::execute(t, dev_id); }); }
     void rope_cache(Tensor* t, int32_t dev_id){
-        set_device_for_op(t->device, dev_id);
-        ops::RopeCacheImpl<Device::CPU>::execute(t);
+        ops::RopeCacheImpl<Device::CPU>::execute(t, dev_id);
     }
 
     // ===== memcpy =====
@@ -93,11 +82,10 @@ namespace kernel {
         if (t->src[0] && t->src[0]->device != t->device) {
             dev = (t->device != Device::CPU) ? t->device : t->src[0]->device;
         }
-        set_device_for_op(dev, dev_id);
-        device::dispatchOp(dev, [&]<Device D>() { ops::MemcpyImpl<D>::execute(t); });
+        device::dispatchOp(dev, [&]<Device D>() { ops::MemcpyImpl<D>::execute(t, dev_id); });
     }
 
     // ===== misc =====
-    void concat(Tensor* t, int32_t dev_id)         { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::ConcatImpl<D>::execute(t); }); }
-    void repeat(Tensor* t, int32_t dev_id)         { set_device_for_op(t->device, dev_id); device::dispatchOp(t->device, [&]<Device D>() { ops::RepeatImpl<D>::execute(t); }); }
+    void concat(Tensor* t, int32_t dev_id)         { device::dispatchOp(t->device, [&]<Device D>() { ops::ConcatImpl<D>::execute(t, dev_id); }); }
+    void repeat(Tensor* t, int32_t dev_id)         { device::dispatchOp(t->device, [&]<Device D>() { ops::RepeatImpl<D>::execute(t, dev_id); }); }
 } // namespace kernel

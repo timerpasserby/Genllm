@@ -40,7 +40,7 @@ __global__ void softmax_kernel(const T* __restrict__ input, T* __restrict__ outp
     }
 }
 
-void SoftmaxImpl<Device::CUDA>::execute(Tensor* t){
+void SoftmaxImpl<Device::CUDA>::execute(Tensor* t, int32_t dev_id){
     const Tensor* x = t->src[0];
     int axis = static_cast<int>(t->op_params[0]); // 支持负轴索引
     int dims  = 0;
@@ -82,7 +82,7 @@ void SoftmaxImpl<Device::CUDA>::execute(Tensor* t){
 }
 
 
-void AttentionImpl<Device::CUDA>::execute(Tensor*)       { throw std::runtime_error("cuda::attention not implemented"); }
+void AttentionImpl<Device::CUDA>::execute(Tensor*, int32_t)       { throw std::runtime_error("cuda::attention not implemented"); }
 
 
 template <typename T, int HEAD_DIM=128>
@@ -176,7 +176,8 @@ __global__ void flash_attention_warp_kernel(
         out[out_base + q_pos * HEAD_DIM + d_idx] = T(o_reg[i] * inv_l);
     }
 }
-void FlashAttentionImpl<Device::CUDA>::execute(Tensor* out) {
+void FlashAttentionImpl<Device::CUDA>::execute(Tensor* out, int32_t dev_id) {
+    cudaSetDevice(dev_id);
     const Tensor* Q = out->src[0];
     const Tensor* K = out->src[1];
     const Tensor* V = out->src[2];
@@ -443,7 +444,7 @@ void SdpaImpl<Device::CUDA>::execute(Tensor* out,int32_t dev_id){
 }
 
 
-void DiagMaskInfImpl<Device::CUDA>::execute(Tensor*)     { throw std::runtime_error("cuda::diag_mask_inf not implemented"); }
+void DiagMaskInfImpl<Device::CUDA>::execute(Tensor*, int32_t)     { throw std::runtime_error("cuda::diag_mask_inf not implemented"); }
 
 
 template struct SoftmaxImpl<Device::CUDA>;

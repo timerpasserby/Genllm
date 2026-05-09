@@ -135,7 +135,7 @@ void layer_norm(T* out, const T* x, const float* w, const float* b, size_t num_t
 
 namespace ops {
 
-void RmsNormImpl<Device::CPU>::execute(Tensor* out) {
+void RmsNormImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
     const Tensor* x = out->src[0];  // [batch, seq_len, hidden_size] or  [batch, num_heads, seq_len, head_dim]
     const Tensor* w = out->src[1];  // [hidden_size]                 or  [head_dim]
     float eps = out->op_params[0];
@@ -152,7 +152,7 @@ void RmsNormImpl<Device::CPU>::execute(Tensor* out) {
 
 }
 
-    void LayerNormImpl<Device::CPU>::execute(Tensor* out) {
+    void LayerNormImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x = out->src[0];
         const Tensor* w = out->src[1];
         const Tensor* b = out->src[2];

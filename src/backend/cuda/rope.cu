@@ -49,7 +49,8 @@ __global__ void apply_rope_kernel(
     }
 }
 
-void ApplyRopeImpl<Device::CUDA>::execute(Tensor* out) {
+void ApplyRopeImpl<Device::CUDA>::execute(Tensor* out, int32_t dev_id) {
+    cudaSetDevice(dev_id);
     const Tensor* x   = out->src[0];
     const Tensor* cos = out->src[1];
     const Tensor* sin = out->src[2];

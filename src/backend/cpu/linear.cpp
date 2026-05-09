@@ -322,7 +322,7 @@ namespace ops {
 
     // [batch,rows,common] @ [common,cols] = [batch,rows,cols]
     // [batch,rows,common] @ [cols,common].T = [batch,rows,cols]
-    void LinearImpl<Device::CPU>::execute(Tensor* out) {
+    void LinearImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x    = out->src[0]; // bf16
         const Tensor* w    = out->src[1]; // bf16
         const Tensor* bias = out->src[2]; // ...
@@ -349,7 +349,7 @@ namespace ops {
         });
     }
 
-    void MatmulImpl<Device::CPU>::execute(Tensor* out) {
+    void MatmulImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* a = out->src[0];
         const Tensor* b = out->src[1];
         dtype::dispatch(b->dtype, [&]<DataType D_b>() {
@@ -361,7 +361,7 @@ namespace ops {
         });
     }
 
-    void TransposeImpl<Device::CPU>::execute(Tensor* out) {
+    void TransposeImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x = out->src[0];
         int64_t ax0 = static_cast<int64_t>(out->op_params[0]);
         int64_t ax1 = static_cast<int64_t>(out->op_params[1]);

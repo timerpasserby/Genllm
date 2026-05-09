@@ -11,12 +11,12 @@ namespace ops {
 
     template <>
     struct SoftmaxImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct DiagMaskInfImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
@@ -26,12 +26,12 @@ namespace ops {
 
     template <>
     struct AttentionImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct FlashAttentionImpl<Device::CPU> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     extern template struct SoftmaxImpl<Device::CPU>;

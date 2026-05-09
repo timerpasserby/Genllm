@@ -3,13 +3,13 @@
 
 namespace ops {
 
-void MatmulImpl<Device::VULKAN>::execute(Tensor* out) {
+void MatmulImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan MatmulImpl: not implemented");
 }
-void LinearImpl<Device::VULKAN>::execute(Tensor* out) {
+void LinearImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan LinearImpl: not implemented");
 }
-void TransposeImpl<Device::VULKAN>::execute(Tensor* out) {
+void TransposeImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan TransposeImpl: not implemented");
 }
 

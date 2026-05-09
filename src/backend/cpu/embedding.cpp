@@ -48,7 +48,7 @@ void embedding(
 
 namespace ops {
 
-    void EmbeddingImpl<Device::CPU>::execute(Tensor* out) {
+    void EmbeddingImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* input_ids = out->src[0];
         const Tensor* weight = out->src[1];
         bool transpose = out->op_params[0] == 1;

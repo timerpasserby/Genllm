@@ -12,27 +12,27 @@ namespace ops {
 
     template <>
     struct SoftmaxImpl<Device::CUDA> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct DiagMaskInfImpl<Device::CUDA> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct SdpaImpl<Device::CUDA> {
-        static void execute(Tensor* out,int32_t device_id);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct AttentionImpl<Device::CUDA> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     template <>
     struct FlashAttentionImpl<Device::CUDA> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     extern template struct SoftmaxImpl<Device::CUDA>;

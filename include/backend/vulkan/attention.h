@@ -8,11 +8,11 @@ namespace ops {
     template <Device D> struct AttentionImpl;
     template <Device D> struct FlashAttentionImpl;
 
-    template <> struct SoftmaxImpl<Device::VULKAN>        { static void execute(Tensor* out); };
-    template <> struct DiagMaskInfImpl<Device::VULKAN>    { static void execute(Tensor* out); };
+    template <> struct SoftmaxImpl<Device::VULKAN>        { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct DiagMaskInfImpl<Device::VULKAN>    { static void execute(Tensor* out, int32_t dev_id); };
     template <> struct SdpaImpl<Device::VULKAN>            { static void execute(Tensor* out, int32_t dev_id); };
-    template <> struct AttentionImpl<Device::VULKAN>       { static void execute(Tensor* out); };
-    template <> struct FlashAttentionImpl<Device::VULKAN>  { static void execute(Tensor* out); };
+    template <> struct AttentionImpl<Device::VULKAN>       { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct FlashAttentionImpl<Device::VULKAN>  { static void execute(Tensor* out, int32_t dev_id); };
 
     extern template struct SoftmaxImpl<Device::VULKAN>;
     extern template struct DiagMaskInfImpl<Device::VULKAN>;

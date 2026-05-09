@@ -46,7 +46,7 @@ __global__ void rmsnorm_warp_kernel(
         out_row[i] = T(o);
     }
 }
-void RmsNormImpl<Device::CUDA>::execute(Tensor* out){
+void RmsNormImpl<Device::CUDA>::execute(Tensor* out, int32_t dev_id){
     const Tensor* x = out->src[0];  // [B, seq, hidden] 或 [B, n_heads, seq, head_dim]
     const Tensor* w = out->src[1];  // [hidden] or [head_dim]
     float eps = out->op_params[0];
@@ -83,7 +83,7 @@ void RmsNormImpl<Device::CUDA>::execute(Tensor* out){
         fprintf(stderr, "rmsnorm kernel failed: %s\n", cudaGetErrorString(err));
     }
 }
-void LayerNormImpl<Device::CUDA>::execute(Tensor*) { throw std::runtime_error("cuda::layer_norm not implemented"); }
+void LayerNormImpl<Device::CUDA>::execute(Tensor*, int32_t) { throw std::runtime_error("cuda::layer_norm not implemented"); }
 
 template struct RmsNormImpl<Device::CUDA>;
 template struct LayerNormImpl<Device::CUDA>;

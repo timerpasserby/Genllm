@@ -3,19 +3,19 @@
 
 namespace ops {
 
-void SoftmaxImpl<Device::VULKAN>::execute(Tensor* out) {
+void SoftmaxImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan SoftmaxImpl: not implemented");
 }
-void DiagMaskInfImpl<Device::VULKAN>::execute(Tensor* out) {
+void DiagMaskInfImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan DiagMaskInfImpl: not implemented");
 }
-void SdpaImpl<Device::VULKAN>::execute(Tensor* out, int32_t dev_id) {
+void SdpaImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan SdpaImpl: not implemented");
 }
-void AttentionImpl<Device::VULKAN>::execute(Tensor* out) {
+void AttentionImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan AttentionImpl: not implemented");
 }
-void FlashAttentionImpl<Device::VULKAN>::execute(Tensor* out) {
+void FlashAttentionImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan FlashAttentionImpl: not implemented");
 }
 

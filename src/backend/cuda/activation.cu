@@ -18,7 +18,8 @@ __global__ void silu_kernel(const T* __restrict__ input, T* __restrict__ output,
     }
 }
 
-void SiluImpl<Device::CUDA>::execute(Tensor* t) {
+void SiluImpl<Device::CUDA>::execute(Tensor* t, int32_t dev_id) {
+    cudaSetDevice(dev_id);
     const Tensor* x = t->src[0];
 
     constexpr int threads = 256;
@@ -52,7 +53,8 @@ __global__ void gelu_kernel(const T* __restrict__ input, T* __restrict__ output,
         output[glob_id] = T(fx * 0.5f * (1.0f + std::erf(fx * inv_sqrt2)));
     }
 }
-void GeluImpl<Device::CUDA>::execute(Tensor* t) {
+void GeluImpl<Device::CUDA>::execute(Tensor* t, int32_t dev_id) {
+    cudaSetDevice(dev_id);
     const Tensor* x = t->src[0];
 
     constexpr int threads = 256;
@@ -83,7 +85,8 @@ __global__ void relu_kernel(const T* __restrict__ input, T* __restrict__ output,
         output[glob_id] = x > T(0) ? x : T(0);
     }
 }
-void ReluImpl<Device::CUDA>::execute(Tensor* t) {
+void ReluImpl<Device::CUDA>::execute(Tensor* t, int32_t dev_id) {
+    cudaSetDevice(dev_id);
     const Tensor* x = t->src[0];
 
     constexpr int threads = 256;

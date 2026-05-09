@@ -42,7 +42,8 @@ __global__ void permute_kernel(
     dst[out_index] = src[tid];
 }
 
-void PermuteImpl<Device::CUDA>::execute(Tensor* out) {
+void PermuteImpl<Device::CUDA>::execute(Tensor* out, int32_t dev_id) {
+    cudaSetDevice(dev_id);
     const Tensor* x = out->src[0]; // [batch,seq,head,dim]
 
     // 有效维度数
@@ -107,7 +108,8 @@ void PermuteImpl<Device::CUDA>::execute(Tensor* out) {
     }
 }
 
-void ReshapeImpl<Device::CUDA>::execute(Tensor* out) {
+void ReshapeImpl<Device::CUDA>::execute(Tensor* out, int32_t dev_id) {
+    cudaSetDevice(dev_id);
     const Tensor* x = out->src[0];
     out->data   = x->data;
     out->offset = x->offset;
@@ -121,8 +123,8 @@ void ReshapeImpl<Device::CUDA>::execute(Tensor* out) {
         }
     }
 }
-void ConcatImpl<Device::CUDA>::execute(Tensor*)  { throw std::runtime_error("cuda::concat not implemented"); }
-void RepeatImpl<Device::CUDA>::execute(Tensor*)  { throw std::runtime_error("cuda::repeat not implemented"); }
+void ConcatImpl<Device::CUDA>::execute(Tensor*, int32_t)  { throw std::runtime_error("cuda::concat not implemented"); }
+void RepeatImpl<Device::CUDA>::execute(Tensor*, int32_t)  { throw std::runtime_error("cuda::repeat not implemented"); }
 
 template struct ReshapeImpl<Device::CUDA>;
 template struct PermuteImpl<Device::CUDA>;

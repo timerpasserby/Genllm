@@ -6,9 +6,9 @@ namespace ops {
     template <Device D> struct GeluImpl;
     template <Device D> struct ReluImpl;
 
-    template <> struct SiluImpl<Device::VULKAN>  { static void execute(Tensor* out); };
-    template <> struct GeluImpl<Device::VULKAN>  { static void execute(Tensor* out); };
-    template <> struct ReluImpl<Device::VULKAN>  { static void execute(Tensor* out); };
+    template <> struct SiluImpl<Device::VULKAN>  { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct GeluImpl<Device::VULKAN>  { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct ReluImpl<Device::VULKAN>  { static void execute(Tensor* out, int32_t dev_id); };
 
     extern template struct SiluImpl<Device::VULKAN>;
     extern template struct GeluImpl<Device::VULKAN>;

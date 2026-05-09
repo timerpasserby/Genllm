@@ -3,10 +3,10 @@
 
 namespace ops {
 
-void RmsNormImpl<Device::VULKAN>::execute(Tensor* out) {
+void RmsNormImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan RmsNormImpl: not implemented");
 }
-void LayerNormImpl<Device::VULKAN>::execute(Tensor* out) {
+void LayerNormImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan LayerNormImpl: not implemented");
 }
 

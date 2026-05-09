@@ -3,7 +3,7 @@
 
 namespace ops {
 
-    void AddImpl<Device::CPU>::execute(Tensor* out) {
+    void AddImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* a = out->src[0];
         const Tensor* b = out->src[1];
         dtype::dispatch(out->dtype, [&]<DataType D>() {
@@ -20,7 +20,7 @@ namespace ops {
         });
     }
 
-    void SubImpl<Device::CPU>::execute(Tensor* out) {
+    void SubImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* a = out->src[0];
         const Tensor* b = out->src[1];
         dtype::dispatch(out->dtype, [&]<DataType D>() {
@@ -37,7 +37,7 @@ namespace ops {
         });
     }
 
-    void MulImpl<Device::CPU>::execute(Tensor* out) {
+    void MulImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* a = out->src[0];
         const Tensor* b = out->src[1];
         dtype::dispatch(out->dtype, [&]<DataType D>() {
@@ -54,7 +54,7 @@ namespace ops {
         });
     }
 
-    void DivImpl<Device::CPU>::execute(Tensor* out) {
+    void DivImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* a = out->src[0];
         const Tensor* b = out->src[1];
         dtype::dispatch(out->dtype, [&]<DataType D>() {

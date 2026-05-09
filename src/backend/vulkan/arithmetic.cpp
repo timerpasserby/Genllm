@@ -67,30 +67,30 @@ static void dispatch_binop_dtype(
     }
 }
 
-void AddImpl<Device::VULKAN>::execute(Tensor* out) {
+void AddImpl<Device::VULKAN>::execute(Tensor* out, int32_t dev_id) {
     auto& ctx = VulkanContext::get();
-    dispatch_binop_dtype(ctx, 0, out->dtype,
+    dispatch_binop_dtype(ctx, dev_id, out->dtype,
         "add_f32", vkspv::add_f32_spv, vkspv::add_f32_spv_len,
         "add_bf16", vkspv::add_bf16_spv, vkspv::add_bf16_spv_len, out);
 }
 
-void SubImpl<Device::VULKAN>::execute(Tensor* out) {
+void SubImpl<Device::VULKAN>::execute(Tensor* out, int32_t dev_id) {
     auto& ctx = VulkanContext::get();
-    dispatch_binop_dtype(ctx, 0, out->dtype,
+    dispatch_binop_dtype(ctx, dev_id, out->dtype,
         "sub_f32", vkspv::sub_f32_spv, vkspv::sub_f32_spv_len,
         "sub_bf16", vkspv::sub_bf16_spv, vkspv::sub_bf16_spv_len, out);
 }
 
-void MulImpl<Device::VULKAN>::execute(Tensor* out) {
+void MulImpl<Device::VULKAN>::execute(Tensor* out, int32_t dev_id) {
     auto& ctx = VulkanContext::get();
-    dispatch_binop_dtype(ctx, 0, out->dtype,
+    dispatch_binop_dtype(ctx, dev_id, out->dtype,
         "mul_f32", vkspv::mul_f32_spv, vkspv::mul_f32_spv_len,
         "mul_bf16", vkspv::mul_bf16_spv, vkspv::mul_bf16_spv_len, out);
 }
 
-void DivImpl<Device::VULKAN>::execute(Tensor* out) {
+void DivImpl<Device::VULKAN>::execute(Tensor* out, int32_t dev_id) {
     auto& ctx = VulkanContext::get();
-    dispatch_binop_dtype(ctx, 0, out->dtype,
+    dispatch_binop_dtype(ctx, dev_id, out->dtype,
         "div_f32", vkspv::div_f32_spv, vkspv::div_f32_spv_len,
         "div_bf16", vkspv::div_bf16_spv, vkspv::div_bf16_spv_len, out);
 }

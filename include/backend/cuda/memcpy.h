@@ -7,7 +7,7 @@ namespace ops {
 
     template <>
     struct MemcpyImpl<Device::CUDA> {
-        static void execute(Tensor* out);
+        static void execute(Tensor* out, int32_t dev_id);
     };
 
     extern template struct MemcpyImpl<Device::CUDA>;

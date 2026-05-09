@@ -3,7 +3,7 @@
 
 namespace ops {
 
-void MemcpyImpl<Device::VULKAN>::execute(Tensor* out) {
+void MemcpyImpl<Device::VULKAN>::execute(Tensor* out, int32_t) {
     throw std::runtime_error("Vulkan MemcpyImpl: not implemented");
 }
 

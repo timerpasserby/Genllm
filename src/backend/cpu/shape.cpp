@@ -51,7 +51,7 @@ void permute(
 
 namespace ops {
 
-    void ReshapeImpl<Device::CPU>::execute(Tensor* out) {
+    void ReshapeImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x = out->src[0];
         out->data   = x->data;
         out->offset = x->offset;
@@ -66,7 +66,7 @@ namespace ops {
         }
     }
 
-    void PermuteImpl<Device::CPU>::execute(Tensor* out) {
+    void PermuteImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
        const Tensor* x = out->src[0];
         // 有效维度数
         int ndim = 0;
@@ -116,11 +116,11 @@ namespace ops {
         }
     }
 
-    void ConcatImpl<Device::CPU>::execute(Tensor* out) {
+    void ConcatImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         throw std::runtime_error("cpu::concat not implemented");
     }
 
-    void RepeatImpl<Device::CPU>::execute(Tensor* out) {
+    void RepeatImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         throw std::runtime_error("cpu::repeat not implemented");
     }
 

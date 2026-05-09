@@ -4,7 +4,7 @@
 namespace ops {
     template <Device D> struct MemcpyImpl;
 
-    template <> struct MemcpyImpl<Device::VULKAN> { static void execute(Tensor* out); };
+    template <> struct MemcpyImpl<Device::VULKAN> { static void execute(Tensor* out, int32_t dev_id); };
 
     extern template struct MemcpyImpl<Device::VULKAN>;
 }

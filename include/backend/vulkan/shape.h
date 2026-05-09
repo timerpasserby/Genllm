@@ -7,10 +7,10 @@ namespace ops {
     template <Device D> struct ConcatImpl;
     template <Device D> struct RepeatImpl;
 
-    template <> struct ReshapeImpl<Device::VULKAN>  { static void execute(Tensor* out); };
-    template <> struct PermuteImpl<Device::VULKAN>  { static void execute(Tensor* out); };
-    template <> struct ConcatImpl<Device::VULKAN>   { static void execute(Tensor* out); };
-    template <> struct RepeatImpl<Device::VULKAN>   { static void execute(Tensor* out); };
+    template <> struct ReshapeImpl<Device::VULKAN>  { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct PermuteImpl<Device::VULKAN>  { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct ConcatImpl<Device::VULKAN>   { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct RepeatImpl<Device::VULKAN>   { static void execute(Tensor* out, int32_t dev_id); };
 
     extern template struct ReshapeImpl<Device::VULKAN>;
     extern template struct PermuteImpl<Device::VULKAN>;

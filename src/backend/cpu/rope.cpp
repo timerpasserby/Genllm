@@ -73,7 +73,7 @@ static void rope_cache(float* dst, float theta, int head_dim, int max_seq, bool 
 
 namespace ops {
 
-    void ApplyRopeImpl<Device::CPU>::execute(Tensor* out) {
+    void ApplyRopeImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const Tensor* x   = out->src[0];  // [B, n_heads, seq_len, head_dim] , bf16/f16
         const Tensor* cos = out->src[1];  // [max_seq_len, head_dim] F32
         const Tensor* sin = out->src[2];  // [max_seq_len, head_dim] F32
@@ -115,7 +115,7 @@ namespace ops {
         });
     }
 
-    void RopeCacheImpl<Device::CPU>::execute(Tensor* out) {
+    void RopeCacheImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
         const float theta = out->op_params[0];
         const int head_dim = static_cast<int>(out->op_params[1]);
         const int max_seq = static_cast<int>(out->op_params[2]);

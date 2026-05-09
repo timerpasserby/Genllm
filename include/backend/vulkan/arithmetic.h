@@ -7,10 +7,10 @@ namespace ops {
     template <Device D> struct MulImpl;
     template <Device D> struct DivImpl;
 
-    template <> struct AddImpl<Device::VULKAN> { static void execute(Tensor* out); };
-    template <> struct SubImpl<Device::VULKAN> { static void execute(Tensor* out); };
-    template <> struct MulImpl<Device::VULKAN> { static void execute(Tensor* out); };
-    template <> struct DivImpl<Device::VULKAN> { static void execute(Tensor* out); };
+    template <> struct AddImpl<Device::VULKAN> { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct SubImpl<Device::VULKAN> { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct MulImpl<Device::VULKAN> { static void execute(Tensor* out, int32_t dev_id); };
+    template <> struct DivImpl<Device::VULKAN> { static void execute(Tensor* out, int32_t dev_id); };
 
     extern template struct AddImpl<Device::VULKAN>;
     extern template struct SubImpl<Device::VULKAN>;
