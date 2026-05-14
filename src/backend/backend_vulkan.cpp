@@ -1,10 +1,15 @@
+#include <cstdint>
 #include "backend/backend.h"
 
-#ifdef BACKEND_VULKAN
 
-#include "backend/vulkan/vulkan_context.h"
-#include <vulkan/vulkan.hpp>
+#ifdef BACKEND_VULKAN
 #include <print>
+#include <vulkan/vulkan.hpp>
+#include "backend/vulkan/spv/add.h"
+#include "backend/vulkan/spv/sub.h"
+#include "backend/vulkan/spv/mul.h"
+#include "backend/vulkan/spv/div.h"
+#include "backend/vulkan/vulkan_context.h"
 
 VulkanBackendProvider::VulkanBackendProvider() {
     try {
@@ -122,6 +127,13 @@ static struct VulkanBackendProviderRegistrar {
         if (provider->is_available()) {
             BackendRegistry::instance().register_provider(std::move(provider));
         }
+        // 预先注册所有算子
+        auto& instance = VulkanContext::get();
+
+        instance.registerOp("add_16",vkspv::add_f16_spv,vkspv::add_f16_spv_len,3,sizeof(uint64_t));
+        instance.registerOp("add_bf16",vkspv::add_bf16_spv,vkspv::add_bf16_spv_len,3,sizeof(uint64_t));
+
+
     }
 } g_vulkan_backend_registrar;
 

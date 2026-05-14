@@ -18,6 +18,9 @@
 #ifdef BACKEND_CUDA
 #include <cuda_runtime.h>
 #endif
+#ifdef BACKEND_VULKAN
+#include "backend/vulkan/vulkan_context.h"
+#endif
 
 
 Executor::Executor(GraphScheduler& scheduler)
@@ -122,7 +125,6 @@ void Executor::forward() {
             for (const auto& level : grp.levels) {
                 for (Tensor* t : level) {
                    this->execute_tensor(t, grp.device_id);
-                   ops::println(t);
                 }
             }
         }
@@ -142,7 +144,6 @@ void Executor::forward() {
         for (const auto& level : step_layers_[i].levels) {
             for (Tensor* t : level) {
                 this->execute_tensor(t, step_layers_[i].device_id);
-                ops::println(t);
             }
         }
         if (i + 1 < step_layers_.size() && step_layers_[i].layer_id != -1) {
@@ -157,11 +158,11 @@ void Executor::execute_tensor(Tensor* t,int32_t dev_id) {
     }
     this->allocate_output(t,dev_id);
     this->dispatch_kernel(t,dev_id);
-#ifdef BACKEND_CUDA
+    #ifdef BACKEND_CUDA
     if (t->device != Device::CPU) {
         cudaDeviceSynchronize();
     }
-#endif
+    #endif
 }
 // 作用：执行自回归生成，分为 prefill 和 decode 两个阶段
 std::vector<int32_t> Executor::generate(

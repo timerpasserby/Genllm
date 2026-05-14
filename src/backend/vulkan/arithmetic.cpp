@@ -14,7 +14,7 @@ namespace ops {
 
 static void dispatch_binop(VulkanContext& ctx,int dev_id,const char* opname,const uint32_t* spv, size_t spv_len,Tensor* out){
     
-    auto& pipe = ctx.getOrCreatePipeline(dev_id, opname, spv, spv_len, 3, sizeof(uint32_t));
+    auto& pipe = ctx.getOrCreatePipeline(dev_id, opname, spv, spv_len, 3, sizeof(uint64_t));
 
     Tensor* src0 = out->src[0];
     Tensor* src1 = out->src[1];
