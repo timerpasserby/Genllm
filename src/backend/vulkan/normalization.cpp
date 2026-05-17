@@ -1,64 +1,42 @@
-#include "backend/vulkan/normalization.h"
-#include "utils/dtype_traits.hpp"
 
 #ifdef BACKEND_VULKAN
+
+#include "utils/tools.hpp"
+
+#include "utils/dtype_traits.hpp"
+#include "backend/vulkan/normalization.h"
 
 #include <vulkan/vulkan.hpp>
 #include "backend/vulkan/vulkan_context.h"
 #include "backend/vulkan/spv/rms_norm.h"
 #include "backend/vulkan/spv/layer_norm.h"
+#include "backend/vulkan/push_constants.h"
 
 namespace ops {
-
-struct NormPushConstants {
-    int32_t rows;
-    int32_t hidden_size;
-    float eps;
-};
-
-struct LayerNormPushConstants {
-    int32_t rows;
-    int32_t hidden_size;
-    float eps;
-    int32_t has_bias;
-};
 
 static void dispatch_rms_norm(
     VulkanContext& ctx, int dev_id,
     const char* name, const uint32_t* spv, size_t spv_len,
     Tensor* out)
 {
-    auto& pipe = ctx.getOrCreatePipeline(dev_id, name, spv, spv_len, 3, sizeof(NormPushConstants));
-
-    Tensor* src = out->src[0];
-    Tensor* weight = out->src[1];
-    vk::Buffer buf_src = reinterpret_cast<VkBuffer>(src->device_handle);
-    vk::Buffer buf_weight = reinterpret_cast<VkBuffer>(weight->device_handle);
-    vk::Buffer buf_dst = reinterpret_cast<VkBuffer>(out->device_handle);
-
-    auto ds = ctx.allocateDescriptorSet(dev_id, pipe.ds_layout);
-
-    vk::DescriptorBufferInfo src_info(buf_src, src->offset, VK_WHOLE_SIZE);
-    vk::DescriptorBufferInfo weight_info(buf_weight, weight->offset, VK_WHOLE_SIZE);
-    vk::DescriptorBufferInfo dst_info(buf_dst, out->offset, VK_WHOLE_SIZE);
-    ctx.updateDescriptorSets(dev_id, ds, {src_info, weight_info, dst_info});
+    Tensor* src = out->src[0];      //bf16
+    Tensor* weight = out->src[1];   //fp32
 
     size_t hidden_size = weight->num_elements();
     int32_t rows = static_cast<int32_t>(src->num_elements() / hidden_size);
-
+    
     NormPushConstants pc{rows, static_cast<int32_t>(hidden_size), out->op_params[0]};
 
-    // 256 threads/WG, subgroupSize=32 → 8 subgroups/WG → 8 rows/WG
-    uint32_t wg_x = (static_cast<uint32_t>(rows) + 7) / 8;
+    vk::DescriptorSet descSet = ctx.updateDescriptorSets(dev_id, name, {src,weight,out});
+    
+    ctx.bindPipeline(dev_id, name);
+    ctx.bindDescriptorSet(dev_id, descSet);
 
-    auto cmd = ctx.beginCommandBuffer(dev_id);
-    cmd.bindPipeline(vk::PipelineBindPoint::eCompute, pipe.pipeline);
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipe.layout, 0, ds, {});
-    cmd.pushConstants(pipe.layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(NormPushConstants), &pc);
-    cmd.dispatch(wg_x, 1, 1);
-    ctx.endSubmitAndWait(dev_id, cmd);
+    uint32_t group_x = (static_cast<uint32_t>(rows) + 7) / 8;
 
-    ctx.freeDescriptorSet(dev_id, ds);
+    ctx.pushConstants(dev_id, &pc, sizeof(NormPushConstants));
+    ctx.dispatch(dev_id, group_x, 1, 1);
+    ctx.deferFreeDescriptorSet(dev_id, descSet);
 }
 
 static void dispatch_layer_norm(
@@ -66,41 +44,26 @@ static void dispatch_layer_norm(
     const char* name, const uint32_t* spv, size_t spv_len,
     Tensor* out)
 {
-    auto& pipe = ctx.getOrCreatePipeline(dev_id, name, spv, spv_len, 4, sizeof(LayerNormPushConstants));
-
     Tensor* src = out->src[0];
     Tensor* weight = out->src[1];
     Tensor* bias = out->src[2];
-    vk::Buffer buf_src = reinterpret_cast<VkBuffer>(src->device_handle);
-    vk::Buffer buf_weight = reinterpret_cast<VkBuffer>(weight->device_handle);
-    vk::Buffer buf_bias = bias ? vk::Buffer(reinterpret_cast<VkBuffer>(bias->device_handle)) : buf_weight;
-    vk::Buffer buf_dst = reinterpret_cast<VkBuffer>(out->device_handle);
 
-    auto ds = ctx.allocateDescriptorSet(dev_id, pipe.ds_layout);
-
-    vk::DescriptorBufferInfo src_info(buf_src, src->offset, VK_WHOLE_SIZE);
-    vk::DescriptorBufferInfo weight_info(buf_weight, weight->offset, VK_WHOLE_SIZE);
-    vk::DescriptorBufferInfo bias_info(buf_bias, bias ? bias->offset : 0, VK_WHOLE_SIZE);
-    vk::DescriptorBufferInfo dst_info(buf_dst, out->offset, VK_WHOLE_SIZE);
-    ctx.updateDescriptorSets(dev_id, ds, {src_info, weight_info, bias_info, dst_info});
-
+    int32_t has_bias = bias ? 1 : 0;
     size_t hidden_size = weight->num_elements();
     int32_t rows = static_cast<int32_t>(src->num_elements() / hidden_size);
-    float eps = out->op_params[0];
-    int32_t has_bias = bias ? 1 : 0;
 
-    LayerNormPushConstants pc{rows, static_cast<int32_t>(hidden_size), eps, has_bias};
+    LayerNormPushConstants pc{rows, static_cast<int32_t>(hidden_size), out->op_params[0],has_bias};
 
-    uint32_t wg_x = (static_cast<uint32_t>(rows) + 7) / 8;
+    vk::DescriptorSet descSet = ctx.updateDescriptorSets(dev_id, name, {src,weight,bias,out});
 
-    auto cmd = ctx.beginCommandBuffer(dev_id);
-    cmd.bindPipeline(vk::PipelineBindPoint::eCompute, pipe.pipeline);
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipe.layout, 0, ds, {});
-    cmd.pushConstants(pipe.layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(LayerNormPushConstants), &pc);
-    cmd.dispatch(wg_x, 1, 1);
-    ctx.endSubmitAndWait(dev_id, cmd);
+    ctx.bindPipeline(dev_id, name);
+    ctx.bindDescriptorSet(dev_id, descSet);
 
-    ctx.freeDescriptorSet(dev_id, ds);
+    uint32_t group_x = (static_cast<uint32_t>(rows) + 7) / 8;
+
+    ctx.pushConstants(dev_id, &pc, sizeof(LayerNormPushConstants));
+    ctx.dispatch(dev_id, group_x, 1, 1);
+    ctx.deferFreeDescriptorSet(dev_id, descSet);
 }
 
 void RmsNormImpl<Device::VULKAN>::execute(Tensor* out, int32_t dev_id) {

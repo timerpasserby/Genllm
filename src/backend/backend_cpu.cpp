@@ -10,7 +10,7 @@
 BackendInfo CPUBackendProvider::get_backend_info(int device_id) const {
     size_t total = get_system_memory();
     size_t available = get_system_available_memory();
-    size_t used = get_system_memory() - available;
+    size_t used = total - available;
     return BackendInfo{0, total, used, 0, 0, Device::CPU};
 }
 
@@ -42,31 +42,35 @@ size_t CPUBackendProvider::get_system_memory() {
 }
 
 size_t CPUBackendProvider::get_system_available_memory() {
-    #if defined(_WIN32)
-        MEMORYSTATUSEX status;
-        status.dwLength = sizeof(status);
-        GlobalMemoryStatusEx(&status);
-        return static_cast<size_t>(status.ullAvailPhys);
-    #elif defined(__linux__)
-        long pages = sysconf(_SC_AVPHYS_PAGES);
-        long page_size = sysconf(_SC_PAGE_SIZE);
-        if (pages > 0 && page_size > 0) {
-            return static_cast<size_t>(pages) * static_cast<size_t>(page_size);
+#if defined(_WIN32)
+    MEMORYSTATUSEX status;
+    status.dwLength = sizeof(status);
+    GlobalMemoryStatusEx(&status);
+    return static_cast<size_t>(status.ullAvailPhys);
+#elif defined(__linux__)
+    // /proc/meminfo 的 MemAvailable 包含 free + buffers/cached（可回收 page cache）
+    std::ifstream meminfo("/proc/meminfo");
+    std::string line;
+    while (std::getline(meminfo, line)) {
+        if (line.find("MemAvailable:") == 0) {
+            size_t kb = 0;
+            if (std::sscanf(line.c_str(), "MemAvailable: %zu kB", &kb) == 1) {
+                return kb * 1024;
+            }
+            break;
         }
-        return 8ULL << 30;
-    #elif defined(__APPLE__)
-        int64_t available = 0;
-        size_t len = sizeof(available);
-        if (sysctlbyname("vm.page_free_count", nullptr, &len, nullptr, 0) == 0) {
-            long page_size = sysconf(_SC_PAGE_SIZE);
-            int64_t free_pages = 0;
-            sysctlbyname("vm.page_free_count", &free_pages, &len, nullptr, 0);
-            return static_cast<size_t>(free_pages) * static_cast<size_t>(page_size);
-        }
-        return 8ULL << 30;
-    #else
-        return 8ULL << 30;
-    #endif
+    }
+    return get_system_memory();
+#elif defined(__APPLE__)
+    long page_size = sysconf(_SC_PAGE_SIZE);
+    int64_t free_pages = 0, inactive_pages = 0;
+    size_t len = sizeof(int64_t);
+    sysctlbyname("vm.page_free_count", &free_pages, &len, nullptr, 0);
+    sysctlbyname("vm.page_inactive_count", &inactive_pages, &len, nullptr, 0);
+    return static_cast<size_t>(free_pages + inactive_pages) * static_cast<size_t>(page_size);
+#else
+    return get_system_memory();
+#endif
 }
 
 std::string CPUBackendProvider::get_cpu_name() {

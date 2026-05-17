@@ -164,6 +164,7 @@ Tensor* ComputeGraph::insert_memcpy(Tensor* original, Device dst_dev) {
     proxy->dtype = original->dtype;
     proxy->dims = original->dims;
     proxy->layer_id = original->layer_id;
+    proxy->device_handle = original->device_handle;
     proxy->src[0] = original;
     add_tensor(proxy);
     return proxy;

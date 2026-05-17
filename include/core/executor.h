@@ -14,9 +14,9 @@ private:
         size_t size; 
     };
     struct LayerGroup {
-        int32_t layer_id  = 0;
+        int32_t layer_id  = -1;
         int32_t device_id = 0;
-        std::vector<std::vector<Tensor*>> levels; // 层内的依赖子级别
+        std::vector<Tensor*> tensors;
     };
 
     bool is_prefill_          = true;   // 是否预填充
@@ -31,7 +31,7 @@ private:
     std::unique_ptr<ThreadPool> pool_;  // 固定线程池，生命周期跟随 Executor, 停用
     
     std::vector<Tensor*> apply_rope_tensors_;
-    std::vector<LayerGroup> step_layers_;        // transformer 层，按 layer_id 升序
+    std::vector<LayerGroup> step_layers_;
     std::vector<LayerGroup> persistent_layers_;  // CACHE 类型 (layer_id < 0)
     
     std::unordered_map<Device, size_t> persistent_cursor_;

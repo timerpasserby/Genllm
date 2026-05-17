@@ -12,34 +12,23 @@
 
 namespace ops {
 
-static void dispatch_binop(VulkanContext& ctx,int dev_id,const char* opname,const uint32_t* spv, size_t spv_len,Tensor* out){
+static void dispatch_binop(VulkanContext& ctx,int dev_id,const char* name,const uint32_t* spv, size_t spv_len,Tensor* out){
     
-    auto& pipe = ctx.getOrCreatePipeline(dev_id, opname, spv, spv_len, 3, sizeof(uint64_t));
-
     Tensor* src0 = out->src[0];
     Tensor* src1 = out->src[1];
 
-    vk::Buffer buf0 = reinterpret_cast<VkBuffer>(src0->device_handle);
-    vk::Buffer buf1 = reinterpret_cast<VkBuffer>(src1->device_handle);
-    vk::Buffer buf_dst = reinterpret_cast<VkBuffer>(out->device_handle);
+    uint64_t total_elems = out->num_elements();
+    uint32_t group_x = (total_elems + 255) / 256;
+    uint32_t group_y = 1;
+    uint32_t group_z = 1;
 
-    auto ds = ctx.allocateDescriptorSet(dev_id, pipe.ds_layout);
+    vk::DescriptorSet descSet = ctx.updateDescriptorSets(dev_id, name, {src0, src1,out});
 
-    vk::DescriptorBufferInfo src0_info(buf0, src0->offset, VK_WHOLE_SIZE);
-    vk::DescriptorBufferInfo src1_info(buf1, src1->offset, VK_WHOLE_SIZE);
-    vk::DescriptorBufferInfo dst_info(buf_dst, out->offset, VK_WHOLE_SIZE);
-    ctx.updateDescriptorSets(dev_id, ds, {src0_info, src1_info, dst_info});
-
-    uint64_t total = static_cast<uint64_t>(out->num_elements());
-
-    auto cmd = ctx.beginCommandBuffer(dev_id);
-    cmd.bindPipeline(vk::PipelineBindPoint::eCompute, pipe.pipeline);
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipe.layout, 0, ds, {});
-    cmd.pushConstants(pipe.layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(uint64_t), &total);
-    cmd.dispatch((total + 255) / 256, 1, 1);
-    ctx.endSubmitAndWait(dev_id, cmd);
-
-    ctx.freeDescriptorSet(dev_id, ds);
+    ctx.bindPipeline(dev_id, name);
+    ctx.bindDescriptorSet(dev_id, descSet);
+    ctx.pushConstants(dev_id, &total_elems, sizeof(uint64_t));
+    ctx.dispatch(dev_id, group_x, group_y, group_z);
+    ctx.deferFreeDescriptorSet(dev_id, descSet);
 }
 
 void AddImpl<Device::VULKAN>::execute(Tensor* out, int32_t dev_id) {

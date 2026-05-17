@@ -1,9 +1,3 @@
-#include "core/executor.h"
-#include "core/kernels.h"
-#include "core/tokenizer.h"
-#include "model/op_factory.hpp"
-#include "utils/bfloat16.hpp"
-#include "utils/tools.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -21,6 +15,13 @@
 #ifdef BACKEND_VULKAN
 #include "backend/vulkan/vulkan_context.h"
 #endif
+
+#include "core/executor.h"
+#include "core/kernels.h"
+#include "core/tokenizer.h"
+#include "model/op_factory.hpp"
+#include "utils/bfloat16.hpp"
+#include "utils/tools.hpp"
 
 
 Executor::Executor(GraphScheduler& scheduler)
@@ -49,57 +50,24 @@ Executor::Executor(GraphScheduler& scheduler)
         }
     }
 
-    // KV Cache 初始化已在 GraphScheduler::schedule() 中完成
-
-    // 从 execution_levels_ 按 layer_id 分组：CACHE → persistent_layers_，其余 → step_layers_
+    // 从 execution_levels_ 按 device_id 分组：CACHE → persistent_layers_，其余 → step_layers_
     std::map<int, LayerGroup> persistent_map, step_map;
     for (const auto& level : graph_.get_execution_levels()) {
         for (Tensor* t : level) {
             if (!t->is_computed()) continue;
-            auto& map = (t->type == TensorType::TENSOR_TYPE_CACHE) ? persistent_map : step_map;
-            
-            auto& grp = map[t->layer_id];
-            grp.layer_id = t->layer_id;
-            grp.device_id = scheduler_.get_device_id(t->layer_id);
-            grp.levels.push_back({t});
+            int32_t dev_id = scheduler_.get_device_id(t->layer_id);
+            auto& grp = (t->type == TensorType::TENSOR_TYPE_CACHE)
+                            ? persistent_map[dev_id]
+                            : step_map[dev_id];
+            grp.device_id = dev_id;
+            grp.tensors.push_back(t);
+            if (grp.layer_id < 0) grp.layer_id = t->layer_id;
         }
     }
-    // 合并同一层内同一依赖级别的 tensor
-    persistent_map.clear();
-    step_map.clear();
-
-    for (const auto& level : graph_.get_execution_levels()) {
-        struct TypeBuckets { std::vector<Tensor*> cache; std::vector<Tensor*> step; };
-        std::map<int, TypeBuckets> bucket;
-        for (Tensor* t : level) {
-            if (!t->is_computed()) continue;
-            auto& b = bucket[t->layer_id];
-            if (t->type == TensorType::TENSOR_TYPE_CACHE)
-                b.cache.push_back(t);
-            else
-                b.step.push_back(t);
-        }
-        for (auto& [lid, tb] : bucket) {
-            if (!tb.cache.empty()) {
-                auto& grp = persistent_map[lid];
-                grp.layer_id = lid;
-                grp.device_id = scheduler_.get_device_id(lid);
-                grp.levels.push_back(std::move(tb.cache));
-            }
-            if (!tb.step.empty()) {
-                auto& grp = step_map[lid];
-                grp.layer_id = lid;
-                grp.device_id = scheduler_.get_device_id(lid);
-                grp.levels.push_back(std::move(tb.step));
-            }
-        }
-    }
-    for (auto& [lid, grp] : persistent_map) 
+    for (auto& [did, grp] : persistent_map)
         persistent_layers_.push_back(std::move(grp));
-    for (auto& [lid, grp] : step_map)     
+    for (auto& [did, grp] : step_map)
         step_layers_.push_back(std::move(grp));
-    std::sort(step_layers_.begin(), step_layers_.end(),
-              [](const LayerGroup& a, const LayerGroup& b) { return a.layer_id < b.layer_id; });
 
     for (auto* t : graph_.get_all_tensors()) {
         if (t->op_type == OperationType::OP_TYPE_APPLY_ROPE) {
@@ -122,11 +90,19 @@ void Executor::forward() {
     // Phase 1: persistent ops（rope_cos/sin）
     if (!this->persistent_computed_) {
         for (const auto& grp : persistent_layers_) {
-            for (const auto& level : grp.levels) {
-                for (Tensor* t : level) {
-                   this->execute_tensor(t, grp.device_id);
-                }
+        #ifdef BACKEND_VULKAN
+            auto& ctx = VulkanContext::get();
+            ctx.beginRecording(grp.device_id);
+        #endif
+            for (Tensor* t : grp.tensors) {
+                this->execute_tensor(t, grp.device_id);
             }
+
+        #ifdef BACKEND_VULKAN
+            ctx.endRecordingAndWait(grp.device_id);
+            ctx.cleanupPendingFrees(grp.device_id);
+            ctx.cleanupPendingStagingBuffers(grp.device_id);
+        #endif
         }
         for (auto&& [dev, ids] : dev_id_map_) {
             for(int id : ids){
@@ -141,14 +117,30 @@ void Executor::forward() {
     // Phase 2: step ops
     this->reset_step_activations();
     for (size_t i = 0; i < step_layers_.size(); ++i) {
-        for (const auto& level : step_layers_[i].levels) {
-            for (Tensor* t : level) {
-                this->execute_tensor(t, step_layers_[i].device_id);
+        int32_t prev_layer = -1;
+        // 处理同设备的ops
+        #ifdef BACKEND_VULKAN
+        auto& ctx = VulkanContext::get();
+        ctx.beginRecording(step_layers_[i].device_id);
+        #endif
+        for (size_t j = 0;j<step_layers_[i].tensors.size();j++) {
+            Tensor* t = step_layers_[i].tensors[j];
+
+            if (prev_layer != -1 && t->layer_id != prev_layer) {
+                this->reset_step_activations();
             }
+            prev_layer = t->layer_id;
+            this->execute_tensor(t, step_layers_[i].device_id); // 内部会为t申请空间
         }
-        if (i + 1 < step_layers_.size() && step_layers_[i].layer_id != -1) {
-            this->reset_step_activations();
+        if (i + 1 < step_layers_.size()) {
+            this->reset_step_activations(); // 收尾
         }
+        #ifdef BACKEND_VULKAN
+        ctx.endRecordingAndWait(step_layers_[i].device_id);
+        // ops::println(t);
+        ctx.cleanupPendingFrees(step_layers_[i].device_id); // 会释放描述符
+        ctx.cleanupPendingStagingBuffers(step_layers_[i].device_id);
+        #endif
     }
 }
 void Executor::execute_tensor(Tensor* t,int32_t dev_id) {

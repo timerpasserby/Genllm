@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <memory>
 #include <map>
+#include <unordered_map>
 
 #include "pools.h"
 #include "resource.h"
@@ -22,6 +23,7 @@ private:
     bool lock_memory_ = false;
     std::map<DevKey, DevicePools> devices_;
     std::map<DevKey, std::unique_ptr<PagedAttentionManager>> attention_managers_;
+    std::unordered_map<int32_t, int32_t> layer_dev_id_; // layer_id → dev_id
     
     std::unique_ptr<IMemoryResource> make_resource(Device dev, size_t dev_id);
 public:
@@ -37,6 +39,12 @@ public:
 
 
     void load_weights(GGUFParser& parser, const ComputeGraph& graph);
+
+    void register_layer_device(int32_t layer_id, int32_t dev_id) { layer_dev_id_[layer_id] = dev_id; }
+    [[nodiscard]] int32_t get_layer_device(int32_t layer_id) const {
+        auto it = layer_dev_id_.find(layer_id);
+        return it != layer_dev_id_.end() ? it->second : 0;
+    }
 
     [[nodiscard]] DevicePools* get(Device dev, size_t dev_id);
     DevicePools& get_or_create(Device dev, size_t dev_id,size_t weight_cap,size_t activation_cap,size_t kv_cap = 0);

@@ -29,7 +29,6 @@ void GraphScheduler::schedule(const std::vector<BackendInfo>& devices) {
     this->assign_global_nodes(this->graph_, cpu);   // 4. 添加全局节点，如rope_sin / cos
     this->insert_copy_edges(this->graph_);          // 5. 为跨设备情况添加拷贝节点
 
-
     this->create_memory_pools(this->graph_, devices); // 6. 创建内存池
     this->initialize_kv_cache();                            //  7.初始化 KV cache 的 page table
     this->print_summary(costs, devices);
@@ -167,9 +166,9 @@ void GraphScheduler::apply_assignment(
     for (const auto& a : assignments) {
         for (int l = a.start_layer; l <= a.end_layer; ++l) {
             layer_dev[l] = a.device;
+            mmanager_->register_layer_device(l, a.dev_id);
         }
     }
-
     for (auto* t : graph->get_all_tensors()) {
         if (t->layer_id < 0) continue;
         auto it = layer_dev.find(t->layer_id);
@@ -239,7 +238,13 @@ void GraphScheduler::insert_copy_edges(std::unique_ptr<ComputeGraph>& graph) con
     };
 
     // 第一趟：只收集跨设备边，不改图（避免遍历时 push_back 导致迭代器失效）
-    struct Edge { Tensor* src; Device dst_dev; int src_idx; Tensor* consumer; };
+    struct Edge {
+        Tensor* src;
+        Device dst_dev;
+        int src_idx;
+        Tensor* consumer;
+    };
+
     std::vector<Edge> pending;
     for (auto* t : graph->get_all_tensors()) {
         for (int i = 0; i < TENSOR_MAX_SRC; ++i) {
@@ -269,16 +274,33 @@ void GraphScheduler::insert_copy_edges(std::unique_ptr<ComputeGraph>& graph) con
             ++deduped;
             continue;
         }
-        Tensor* proxy = graph->insert_memcpy(e.src, e.dst_dev);
+
+        Tensor* proxy = nullptr;
+        if (e.src->device != Device::CPU && e.dst_dev != Device::CPU) {
+            // 跨 GPU：拆成两跳 src_dev → CPU → dst_dev
+            Tensor* mid = graph->insert_memcpy(e.src, Device::CPU); // gpu0 --> cpu
+            proxy       = graph->insert_memcpy(mid, e.dst_dev);     // cpu --> gpu1
+            std::println(
+            "  [copy] {} ({}) -> {} (CPU) -> {} ({})",
+                    e.src->name, device_to_string(e.src->device),
+                    mid->name,
+                    proxy->name, device_to_string(e.dst_dev)
+            );
+        } else {
+            proxy = graph->insert_memcpy(e.src, e.dst_dev); // cpu -> gpu or gpu -> cpu
+            std::println(
+            "  [copy] {} ({}) -> {} ({})",
+                    e.src->name, device_to_string(e.src->device),
+                    proxy->name, device_to_string(e.dst_dev)
+            );
+        }
+
         cache[key] = proxy;
         if (e.consumer)
             e.consumer->src[e.src_idx] = proxy;
         else
             graph->replace_output(e.src, proxy);
         ++deduped;
-        std::println("  [copy] {} ({}) -> {} ({})",
-                     e.src->name, device_to_string(e.src->device),
-                     proxy->name, device_to_string(e.dst_dev));
     }
 
     if (deduped > 0) {

@@ -9,7 +9,17 @@
 #include "backend/vulkan/spv/sub.h"
 #include "backend/vulkan/spv/mul.h"
 #include "backend/vulkan/spv/div.h"
+#include "backend/vulkan/spv/silu.h"
+#include "backend/vulkan/spv/gelu.h"
+#include "backend/vulkan/spv/relu.h"
+#include "backend/vulkan/spv/linear.h"
+#include "backend/vulkan/spv/rms_norm.h"
+#include "backend/vulkan/spv/layer_norm.h"
+#include "backend/vulkan/spv/rope.h"
+#include "backend/vulkan/spv/permute.h"
+#include "backend/vulkan/spv/attention.h"
 #include "backend/vulkan/vulkan_context.h"
+#include "backend/vulkan/push_constants.h"
 
 VulkanBackendProvider::VulkanBackendProvider() {
     try {
@@ -130,8 +140,63 @@ static struct VulkanBackendProviderRegistrar {
         // 预先注册所有算子
         auto& instance = VulkanContext::get();
 
-        instance.registerOp("add_16",vkspv::add_f16_spv,vkspv::add_f16_spv_len,3,sizeof(uint64_t));
-        instance.registerOp("add_bf16",vkspv::add_bf16_spv,vkspv::add_bf16_spv_len,3,sizeof(uint64_t));
+        // --- 算术 ---
+        instance.registerOp("add_f16",  vkspv::add_f16_spv,  vkspv::add_f16_spv_len,  3, sizeof(uint64_t));
+        instance.registerOp("add_bf16", vkspv::add_bf16_spv, vkspv::add_bf16_spv_len, 3, sizeof(uint64_t));
+        instance.registerOp("add_f32",  vkspv::add_f32_spv,  vkspv::add_f32_spv_len,  3, sizeof(uint64_t));
+        instance.registerOp("sub_f16",  vkspv::sub_f16_spv,  vkspv::sub_f16_spv_len,  3, sizeof(uint64_t));
+        instance.registerOp("sub_bf16", vkspv::sub_bf16_spv, vkspv::sub_bf16_spv_len, 3, sizeof(uint64_t));
+        instance.registerOp("sub_f32",  vkspv::sub_f32_spv,  vkspv::sub_f32_spv_len,  3, sizeof(uint64_t));
+        instance.registerOp("mul_f16",  vkspv::mul_f16_spv,  vkspv::mul_f16_spv_len,  3, sizeof(uint64_t));
+        instance.registerOp("mul_bf16", vkspv::mul_bf16_spv, vkspv::mul_bf16_spv_len, 3, sizeof(uint64_t));
+        instance.registerOp("mul_f32",  vkspv::mul_f32_spv,  vkspv::mul_f32_spv_len,  3, sizeof(uint64_t));
+        instance.registerOp("div_f16",  vkspv::div_f16_spv,  vkspv::div_f16_spv_len,  3, sizeof(uint64_t));
+        instance.registerOp("div_bf16", vkspv::div_bf16_spv, vkspv::div_bf16_spv_len, 3, sizeof(uint64_t));
+        instance.registerOp("div_f32",  vkspv::div_f32_spv,  vkspv::div_f32_spv_len,  3, sizeof(uint64_t));
+
+        // --- 激活 ---
+        instance.registerOp("silu_f16",  vkspv::silu_f16_spv,  vkspv::silu_f16_spv_len,  2, sizeof(uint64_t));
+        instance.registerOp("silu_bf16", vkspv::silu_bf16_spv, vkspv::silu_bf16_spv_len, 2, sizeof(uint64_t));
+        instance.registerOp("silu_f32",  vkspv::silu_f32_spv,  vkspv::silu_f32_spv_len,  2, sizeof(uint64_t));
+        instance.registerOp("gelu_f16",  vkspv::gelu_f16_spv,  vkspv::gelu_f16_spv_len,  2, sizeof(uint64_t));
+        instance.registerOp("gelu_bf16", vkspv::gelu_bf16_spv, vkspv::gelu_bf16_spv_len, 2, sizeof(uint64_t));
+        instance.registerOp("gelu_f32",  vkspv::gelu_f32_spv,  vkspv::gelu_f32_spv_len,  2, sizeof(uint64_t));
+        instance.registerOp("relu_f16",  vkspv::relu_f16_spv,  vkspv::relu_f16_spv_len,  2, sizeof(uint64_t));
+        instance.registerOp("relu_bf16", vkspv::relu_bf16_spv, vkspv::relu_bf16_spv_len, 2, sizeof(uint64_t));
+        instance.registerOp("relu_f32",  vkspv::relu_f32_spv,  vkspv::relu_f32_spv_len,  2, sizeof(uint64_t));
+
+        // --- 线性 ---
+        instance.registerOp("linear_f16",  vkspv::linear_f16_spv,  vkspv::linear_f16_spv_len,  3, sizeof(ops::LinearPushConstants));
+        instance.registerOp("linear_bf16", vkspv::linear_bf16_spv, vkspv::linear_bf16_spv_len, 3, sizeof(ops::LinearPushConstants));
+        instance.registerOp("linear_f32",  vkspv::linear_f32_spv,  vkspv::linear_f32_spv_len,  3, sizeof(ops::LinearPushConstants));
+
+        // --- RMS Norm ---
+        instance.registerOp("rms_norm_f16",  vkspv::rms_norm_f16_spv,  vkspv::rms_norm_f16_spv_len,  3, sizeof(ops::NormPushConstants));
+        instance.registerOp("rms_norm_bf16", vkspv::rms_norm_bf16_spv, vkspv::rms_norm_bf16_spv_len, 3, sizeof(ops::NormPushConstants));
+        instance.registerOp("rms_norm_f32",  vkspv::rms_norm_f32_spv,  vkspv::rms_norm_f32_spv_len,  3, sizeof(ops::NormPushConstants));
+
+        // --- Layer Norm ---
+        instance.registerOp("layer_norm_f16",  vkspv::layer_norm_f16_spv,  vkspv::layer_norm_f16_spv_len,  4, sizeof(ops::LayerNormPushConstants));
+        instance.registerOp("layer_norm_bf16", vkspv::layer_norm_bf16_spv, vkspv::layer_norm_bf16_spv_len, 4, sizeof(ops::LayerNormPushConstants));
+        instance.registerOp("layer_norm_f32",  vkspv::layer_norm_f32_spv,  vkspv::layer_norm_f32_spv_len,  4, sizeof(ops::LayerNormPushConstants));
+
+        // --- RoPE ---
+        instance.registerOp("rope_f16",  vkspv::rope_f16_spv,  vkspv::rope_f16_spv_len,  4, sizeof(ops::RopePushConstants));
+        instance.registerOp("rope_bf16", vkspv::rope_bf16_spv, vkspv::rope_bf16_spv_len, 4, sizeof(ops::RopePushConstants));
+        instance.registerOp("rope_f32",  vkspv::rope_f32_spv,  vkspv::rope_f32_spv_len,  4, sizeof(ops::RopePushConstants));
+
+        // --- Permute ---
+        instance.registerOp("permute_f16",  vkspv::permute_f16_spv,  vkspv::permute_f16_spv_len,  2, sizeof(ops::PermutePushConstants));
+        instance.registerOp("permute_bf16", vkspv::permute_bf16_spv, vkspv::permute_bf16_spv_len, 2, sizeof(ops::PermutePushConstants));
+        instance.registerOp("permute_f32",  vkspv::permute_f32_spv,  vkspv::permute_f32_spv_len,  2, sizeof(ops::PermutePushConstants));
+
+        // --- SDPA ---
+        instance.registerOp("sdpa_f16",  vkspv::sdpa_f16_spv,  vkspv::sdpa_f16_spv_len,  4, sizeof(ops::SdpaPushConstants));
+        instance.registerOp("sdpa_bf16", vkspv::sdpa_bf16_spv, vkspv::sdpa_bf16_spv_len, 4, sizeof(ops::SdpaPushConstants));
+
+        // --- Paged Attention ---
+        instance.registerOp("page_attn_f16",  vkspv::page_attn_f16_spv,  vkspv::page_attn_f16_spv_len,  6, sizeof(ops::PagedAttnPushConstants));
+        instance.registerOp("page_attn_bf16", vkspv::page_attn_bf16_spv, vkspv::page_attn_bf16_spv_len, 6, sizeof(ops::PagedAttnPushConstants));
 
 
     }

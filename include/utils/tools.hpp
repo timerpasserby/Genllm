@@ -17,6 +17,9 @@
 #ifdef BACKEND_VULKAN
 #include "backend/vulkan/vulkan_context.h"
 #endif
+#ifdef BACKEND_VULKAN
+#include "backend/vulkan/vulkan_context.h"
+#endif
 
 // ANSI 颜色代码
 constexpr const char* COLOR_RESET  = "\033[0m";
@@ -156,20 +159,35 @@ namespace ops{
             case Device::VULKAN:
                 #ifdef BACKEND_VULKAN
                 {
-                    auto& ctx = VulkanContext::get();
+                    auto& vk_ctx = VulkanContext::get();
                     int vk_dev = 0;
                     vk::DeviceMemory staging_mem;
-                    void* staging_mapped;
-                    vk::Buffer staging_buf = ctx.createStagingBuffer(
-                        vk_dev, nbytes, &staging_mem, &staging_mapped);
-                    vk::CommandBuffer cmd = ctx.beginCommandBuffer(vk_dev);
-                    vk::BufferCopy region(t->offset, 0, nbytes);
-                    cmd.copyBuffer(
-                        static_cast<VkBuffer>(reinterpret_cast<void*>(t->device_handle)),
-                        staging_buf, region);
-                    ctx.endSubmitAndWait(vk_dev, cmd);
+                    void* staging_mapped = nullptr;
+                    vk::Buffer staging_buf = vk_ctx.createStagingBuffer(vk_dev, nbytes, &staging_mem, &staging_mapped);
+                    if (!staging_buf) break;
+
+                    {
+                        auto& slot = vk_ctx.slot(vk_dev);
+                        vk::CommandBufferAllocateInfo allocInfo(slot.command_pool, vk::CommandBufferLevel::ePrimary, 1);
+                        auto cmds = slot.device.allocateCommandBuffers(allocInfo);
+                        vk::CommandBufferBeginInfo beginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+                        cmds[0].begin(beginInfo);
+                        cmds[0].copyBuffer(
+                            static_cast<VkBuffer>(reinterpret_cast<void*>(t->device_handle)),
+                            staging_buf,
+                            vk::BufferCopy(t->offset, 0, nbytes));
+                        cmds[0].end();
+                        vk::SubmitInfo submitInfo({}, {}, cmds[0]);
+                        vk::Fence fence = slot.device.createFence({});
+                        slot.compute_queue.submit(submitInfo, fence);
+                        VkFence vk_fence = static_cast<VkFence>(fence);
+                        vkWaitForFences(static_cast<VkDevice>(slot.device), 1, &vk_fence, VK_TRUE, UINT64_MAX);
+                        slot.device.destroyFence(fence);
+                        slot.device.freeCommandBuffers(slot.command_pool, cmds[0]);
+                    }
+
                     std::memcpy(device_copy.get(), staging_mapped, nbytes);
-                    ctx.destroyStagingBuffer(vk_dev, staging_buf, staging_mem, staging_mapped);
+                    vk_ctx.destroyStagingBuffer(vk_dev, staging_buf, staging_mem, staging_mapped);
                 }
                 #endif
                 break;

@@ -76,11 +76,21 @@ namespace kernel {
         ops::RopeCacheImpl<Device::CPU>::execute(t, dev_id);
     }
 
-    // ===== memcpy =====
+    // cpu -> gpu_x:  dev = gpu, id = x
+    // gpu_x -> cpu:  dev = gpu, id = x
+    // 不存在直接：gpu0 -> gpu1,已经在外部被拆分为：gpu0 -> cpu,cpu -> gpu1
     void memcpy(Tensor* t, int32_t dev_id) {
         Device dev = t->device;
-        if (t->src[0] && t->src[0]->device != t->device) {
-            dev = (t->device != Device::CPU) ? t->device : t->src[0]->device;
+
+        Tensor* src = t->src[0];
+        Tensor* dst = t;
+
+        if (src && src->device != dst->device) {
+            if(dst->device != Device::CPU){
+                dev = dst->device;
+            }else{
+                dev = src->device;
+            }
         }
         device::dispatchOp(dev, [&]<Device D>() { ops::MemcpyImpl<D>::execute(t, dev_id); });
     }

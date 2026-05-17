@@ -1,5 +1,7 @@
 #include "backend/vulkan/memcpy.h"
+#include "tensor.hpp"
 #include "utils/utils.hpp"
+
 
 #ifdef BACKEND_VULKAN
 
@@ -13,111 +15,81 @@
 namespace ops {
 
 void MemcpyImpl<Device::VULKAN>::execute(Tensor* out, int32_t dev_id) {
-    auto& ctx = VulkanContext::get();
-    Tensor* src = out->src[0];
-
-    if (!src) {
-        throw std::runtime_error("MemcpyImpl<VULKAN>: source tensor is null");
+    Tensor* src = out->src[0];   // 源
+    Tensor* dst = out;           // 目标就是 out 自身
+    if (!src || !dst) {
+        throw std::runtime_error("MemcpyImpl<VULKAN>: src or dst is null");
     }
 
-    size_t nbytes = out->bytes();
+    size_t nbytes = out->bytes();  // 拷贝字节数
     Device src_dev = src->device;
-    Device dst_dev = out->device;
+    Device dst_dev = dst->device;  // 即 out->device
+
+    auto& ctx = VulkanContext::get();
 
     // ── CPU → Vulkan ──
     if (src_dev == Device::CPU && dst_dev == Device::VULKAN) {
+        VkBuffer dst_buffer = reinterpret_cast<VkBuffer>(dst->device_handle);
+        VkDeviceSize dst_offset = dst->offset;
+        // 创建 staging buffer
         vk::DeviceMemory staging_mem;
-        void* staging_mapped;
-        vk::Buffer staging_buf = ctx.createStagingBuffer(dev_id, nbytes, &staging_mem, &staging_mapped);
+        void* staging_ptr = nullptr;
+        vk::Buffer staging_buf = ctx.createStagingBuffer(dev_id, nbytes, &staging_mem, &staging_ptr);
+        if (!staging_buf) throw std::runtime_error("MemcpyImpl: staging buffer creation failed");
 
-        std::memcpy(staging_mapped, src->data, nbytes);
+        std::memcpy(staging_ptr, src->data, nbytes);  // CPU 数据拷贝
 
-        auto cmd = ctx.beginCommandBuffer(dev_id);
-        vk::BufferCopy region(0, out->offset, nbytes);
-        cmd.copyBuffer(staging_buf,
-                       reinterpret_cast<VkBuffer>(out->device_handle),
-                       region);
-        ctx.endSubmitAndWait(dev_id, cmd);
+        if (!ctx.isRecording(dev_id)) throw std::runtime_error("MemcpyImpl: not in recording mode");
+        
+        vk::CommandBuffer cmd = ctx.cmdBuffer(dev_id);
+        cmd.copyBuffer(staging_buf, dst_buffer, vk::BufferCopy(0, dst_offset, nbytes));
 
-        ctx.destroyStagingBuffer(dev_id, staging_buf, staging_mem, staging_mapped);
+        // Barrier: 拷贝完成 → 后续 compute shader 可读
+        ctx.addBufferBarrier(dev_id, dst_buffer,
+            vk::AccessFlagBits::eTransferWrite,
+            vk::AccessFlagBits::eShaderRead,
+            vk::PipelineStageFlagBits::eTransfer,
+            vk::PipelineStageFlagBits::eComputeShader);
+
+        // 延迟释放 staging buffer
+        auto& slot = ctx.slot(dev_id);
+        std::lock_guard<std::mutex> lock(*slot.pending_frees_mutex);
+        slot.pending_staging_frees.emplace_back(staging_buf, staging_mem, staging_ptr);
         return;
     }
 
     // ── Vulkan → CPU ──
     if (src_dev == Device::VULKAN && dst_dev == Device::CPU) {
+        VkBuffer src_buffer = reinterpret_cast<VkBuffer>(src->device_handle);
+        VkDeviceSize src_offset = src->offset;
+        void* dst_cpu = dst->data;
+        // 创建 staging buffer（作为拷贝目标，CPU 可读）
         vk::DeviceMemory staging_mem;
-        void* staging_mapped;
-        vk::Buffer staging_buf = ctx.createStagingBuffer(dev_id, nbytes, &staging_mem, &staging_mapped);
+        void* staging_ptr = nullptr;
+        vk::Buffer staging_buf = ctx.createStagingBuffer(dev_id, nbytes, &staging_mem, &staging_ptr);
+        if (!staging_buf) throw std::runtime_error("MemcpyImpl: staging buffer creation failed");
 
-        auto cmd = ctx.beginCommandBuffer(dev_id);
-        vk::BufferCopy region(src->offset, 0, nbytes);
-        cmd.copyBuffer(reinterpret_cast<VkBuffer>(src->device_handle),
-                       staging_buf,
-                       region);
-        ctx.endSubmitAndWait(dev_id, cmd);
+        if (!ctx.isRecording(dev_id)) throw std::runtime_error("MemcpyImpl: not in recording mode");
+        vk::CommandBuffer cmd = ctx.cmdBuffer(dev_id);
 
-        std::memcpy(out->data, staging_mapped, nbytes);
+        // Barrier：确保之前所有 compute shader 写入完成后再执行拷贝
+        ctx.addBufferBarrier(dev_id, src_buffer,
+            vk::AccessFlagBits::eShaderWrite,
+            vk::AccessFlagBits::eTransferRead,
+            vk::PipelineStageFlagBits::eComputeShader,
+            vk::PipelineStageFlagBits::eTransfer);
 
-        ctx.destroyStagingBuffer(dev_id, staging_buf, staging_mem, staging_mapped);
+        // 录制拷贝命令：Vulkan buffer → staging buffer
+        cmd.copyBuffer(src_buffer, staging_buf, vk::BufferCopy(src_offset, 0, nbytes));
+
+        // 记录回读任务，在 cleanup 时执行 memcpy
+        auto& slot = ctx.slot(dev_id);
+        std::lock_guard<std::mutex> lock(*slot.pending_frees_mutex);
+        slot.pending_readbacks.push_back({staging_buf, staging_mem, staging_ptr, dst_cpu, nbytes});
         return;
     }
 
-    // ── Vulkan → Vulkan (同设备或跨设备) ──
-    if (src_dev == Device::VULKAN && dst_dev == Device::VULKAN) {
-        int src_dev_id = ctx.bufferDeviceId(src->device_handle);
-
-        if (src_dev_id == dev_id) {
-            // 同设备：直接 vkCmdCopyBuffer
-            auto cmd = ctx.beginCommandBuffer(dev_id);
-            vk::BufferCopy region(src->offset, out->offset, nbytes);
-            cmd.copyBuffer(reinterpret_cast<VkBuffer>(src->device_handle),
-                           reinterpret_cast<VkBuffer>(out->device_handle),
-                           region);
-            ctx.endSubmitAndWait(dev_id, cmd);
-        } else {
-            // 跨设备：Vulkan:0 → host → Vulkan:1
-            std::vector<std::byte> staging(nbytes);
-
-            // D2H from source device
-            {
-                vk::DeviceMemory s_mem;
-                void* s_mapped;
-                vk::Buffer s_buf = ctx.createStagingBuffer(src_dev_id, nbytes, &s_mem, &s_mapped);
-
-                auto cmd = ctx.beginCommandBuffer(src_dev_id);
-                vk::BufferCopy region(src->offset, 0, nbytes);
-                cmd.copyBuffer(reinterpret_cast<VkBuffer>(src->device_handle),
-                               s_buf, region);
-                ctx.endSubmitAndWait(src_dev_id, cmd);
-
-                std::memcpy(staging.data(), s_mapped, nbytes);
-                ctx.destroyStagingBuffer(src_dev_id, s_buf, s_mem, s_mapped);
-            }
-
-            // H2D to destination device
-            {
-                vk::DeviceMemory d_mem;
-                void* d_mapped;
-                vk::Buffer d_buf = ctx.createStagingBuffer(dev_id, nbytes, &d_mem, &d_mapped);
-
-                std::memcpy(d_mapped, staging.data(), nbytes);
-
-                auto cmd = ctx.beginCommandBuffer(dev_id);
-                vk::BufferCopy region(0, out->offset, nbytes);
-                cmd.copyBuffer(d_buf,
-                               reinterpret_cast<VkBuffer>(out->device_handle),
-                               region);
-                ctx.endSubmitAndWait(dev_id, cmd);
-
-                ctx.destroyStagingBuffer(dev_id, d_buf, d_mem, d_mapped);
-            }
-        }
-        return;
-    }
-
-    throw std::runtime_error(
-        "MemcpyImpl<VULKAN>: unsupported copy (" +
-        device_to_string(src_dev) + " -> " + device_to_string(dst_dev) + ")");
+    throw std::runtime_error("MemcpyImpl: unsupported device combination");
 }
 
 template struct MemcpyImpl<Device::VULKAN>;

@@ -178,41 +178,39 @@ void MemoryManager::load_weights(GGUFParser& parser, const ComputeGraph& graph) 
 #ifdef BACKEND_VULKAN
     if (!gpu_weights.empty()) {
         auto& ctx = VulkanContext::get();
-        constexpr int vk_dev = 0;
 
-        size_t max_weight = 0;
-        for (auto& e : gpu_weights)
-            if (e.tensor->device == Device::VULKAN) max_weight = std::max(max_weight, e.tensor->bytes());
-
-        vk::DeviceMemory staging_mem;
-        void* staging_mapped;
-        vk::Buffer staging_buf = ctx.createStagingBuffer(vk_dev, max_weight, &staging_mem, &staging_mapped);
-
+        // 直接遍历 gpu_weights，每个权重独立 submit（staging buffer 不能跨权重复用）
         for (auto& entry : gpu_weights) {
             if (entry.tensor->device != Device::VULKAN) continue;
+            int32_t dev_id = this->get_layer_device(entry.tensor->layer_id);
             size_t size = entry.tensor->bytes();
-            DevicePools* pools = this->get(Device::VULKAN, vk_dev);
+            DevicePools* pools = this->get(Device::VULKAN, dev_id);
             if (!pools || !pools->weight) {
                 throw std::runtime_error(std::format(
-                    "load_weights: no weight pool for Vulkan tensor {}", entry.tensor->name));
+                    "load_weights: no weight pool for Vulkan:{} tensor {}",
+                    dev_id, entry.tensor->name));
             }
             MemoryBlock block = pools->weight->allocate(size, 32);
 
+            vk::DeviceMemory staging_mem;
+            void* staging_mapped;
+            vk::Buffer staging_buf = ctx.createStagingBuffer(dev_id, size, &staging_mem, &staging_mapped);
+
             parser.read_tensor_data(entry.gguf_offset, staging_mapped, size, entry.tensor);
 
-            vk::CommandBuffer cmd = ctx.beginCommandBuffer(vk_dev);
+            ctx.beginRecording(dev_id);
+            vk::CommandBuffer cmd = ctx.cmdBuffer(dev_id);
             vk::BufferCopy region(0, block.offset, size);
             cmd.copyBuffer(staging_buf,
                            static_cast<VkBuffer>(reinterpret_cast<void*>(block.device_handle)),
                            region);
-            ctx.endSubmitAndWait(vk_dev, cmd);
+            ctx.endRecordingAndWait(dev_id);
+            ctx.destroyStagingBuffer(dev_id, staging_buf, staging_mem, staging_mapped);
 
             entry.tensor->data = block.ptr;
             entry.tensor->offset = block.offset;
             entry.tensor->device_handle = block.device_handle;
         }
-
-        ctx.destroyStagingBuffer(vk_dev, staging_buf, staging_mem, staging_mapped);
     }
 #endif
 #if !defined(BACKEND_CUDA) && !defined(BACKEND_VULKAN)
