@@ -29,6 +29,19 @@
 | Vulkan | ✅ 完成 | 同上全部 + paged/flash attention (GLSL compute shaders) |
 | SYCL | 🔜 计划 | — |
 
+## 编译器要求
+
+| 工具 | 版本要求 | 用途 | 必需 |
+|------|---------|------|:----:|
+| C++ 编译器 | C++23 (GCC 14+ / Clang 18+) | 核心引擎编译 | ✅ 是 |
+| CMake | ≥ 3.28 | 构建系统 | ✅ 是 |
+| Ninja / Make | — | 构建工具 | ✅ 是 |
+| CUDA Toolkit | ≥ 12.8 (nvcc) | CUDA 后端编译 | CUDA 选 |
+| Vulkan SDK | ≥ 1.4 (glslc + libvulkan) | Vulkan 后端 + GLSL→SPIR-V 编译 | Vulkan 选 |
+| Python 3 | ≥ 3.8 | 统一构建脚本 (`build.py`)、着色器自动编译 | ✅ 是 |
+
+**CUDA**: `nvcc` 编译 `.cu` 源文件，依赖 `cuBLAS`（CUDA Toolkit 自带）。  
+**Vulkan**: `glslc` 将 `.comp` 着色器编译为 SPIR-V，`build.py --shader` 自动调用并嵌入 C++ header。
 ## 构建统一脚本
 
 ```bash
