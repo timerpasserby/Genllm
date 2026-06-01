@@ -7,6 +7,7 @@ namespace ops {
     template <Device D> struct PermuteImpl;
     template <Device D> struct ConcatImpl;
     template <Device D> struct RepeatImpl;
+    template <Device D> struct NarrowImpl;
 
     template <>
     struct ReshapeImpl<Device::CPU> {
@@ -28,9 +29,15 @@ namespace ops {
         static void execute(Tensor* out, int32_t dev_id);
     };
 
+    template <>
+    struct NarrowImpl<Device::CPU> {
+        static void execute(Tensor* out, int32_t dev_id);
+    };
+
     extern template struct ReshapeImpl<Device::CPU>;
     extern template struct PermuteImpl<Device::CPU>;
     extern template struct ConcatImpl<Device::CPU>;
     extern template struct RepeatImpl<Device::CPU>;
+    extern template struct NarrowImpl<Device::CPU>;
 
 }

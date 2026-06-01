@@ -26,7 +26,7 @@ private:
     GraphScheduler& scheduler_;
     MemoryManager& memory_;
     const ComputeGraph& graph_;
-    std::map<Device, std::vector<int>> dev_id_map_;
+    std::map<Device, std::vector<int>> dev_id_map_; // gpu --> {id0,id1}
     std::map<std::string, InputBinding> inputs_;
     std::unique_ptr<ThreadPool> pool_;  // 固定线程池，生命周期跟随 Executor, 停用
     

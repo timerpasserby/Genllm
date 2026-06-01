@@ -50,4 +50,20 @@ namespace ops {
 template struct SiluImpl<Device::CPU>;
 template struct GeluImpl<Device::CPU>;
 template struct ReluImpl<Device::CPU>;
+
+    void SigmoidImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
+        const Tensor* x = out->src[0];
+        dtype::dispatch(out->dtype, [&]<DataType D>() {
+            using T = dtype::type_t<D>;
+            const T* in = static_cast<const T*>(x->data);
+            T*       o  = static_cast<T*>(out->data);
+            size_t   n  = out->num_elements();
+            for (size_t i = 0; i < n; ++i) {
+                float fx = dtype::to_f32<D>(in[i]);
+                o[i] = dtype::from_f32<D>(1.0f / (1.0f + std::exp(-fx)));
+            }
+        });
+    }
+
+template struct SigmoidImpl<Device::CPU>;
 }

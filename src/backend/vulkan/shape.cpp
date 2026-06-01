@@ -84,10 +84,49 @@ void RepeatImpl<Device::VULKAN>::execute(Tensor*, int32_t) {
     throw std::runtime_error("Vulkan RepeatImpl: not implemented");
 }
 
+void NarrowImpl<Device::VULKAN>::execute(Tensor* out, int32_t dev_id) {
+    const Tensor* x = out->src[0];
+    int32_t dim   = static_cast<int32_t>(out->op_params[0]);
+    int64_t start = static_cast<int64_t>(out->op_params[1]);
+    int64_t size  = static_cast<int64_t>(out->op_params[2]);
+    size_t elem_sz = data_type_size(out->dtype);
+
+    int64_t outer = 1;
+    for (int d = 0; d < dim; ++d)
+        if (x->dims[d] > 0) outer *= x->dims[d];
+
+    size_t src_block = 1;
+    for (int d = dim; d < TENSOR_MAX_DIMS && x->dims[d] > 0; ++d)
+        src_block *= x->dims[d];
+    src_block *= elem_sz;
+
+    size_t dst_block = size * elem_sz;
+    size_t offset    = start * elem_sz;
+
+    auto& ctx = VulkanContext::get();
+    if (!ctx.isRecording(dev_id))
+        throw std::runtime_error("NarrowImpl<VULKAN>: not in recording mode");
+    vk::CommandBuffer cmd = ctx.cmdBuffer(dev_id);
+
+    vk::Buffer src_buf = reinterpret_cast<VkBuffer>(x->device_handle);
+    vk::Buffer dst_buf = reinterpret_cast<VkBuffer>(out->device_handle);
+
+    std::vector<vk::BufferCopy> regions;
+    for (int64_t i = 0; i < outer; ++i) {
+        regions.push_back({
+            x->offset + i * src_block + offset,
+            out->offset + i * dst_block,
+            dst_block
+        });
+    }
+    if (!regions.empty()) cmd.copyBuffer(src_buf, dst_buf, regions);
+}
+
 template struct ReshapeImpl<Device::VULKAN>;
 template struct PermuteImpl<Device::VULKAN>;
 template struct ConcatImpl<Device::VULKAN>;
 template struct RepeatImpl<Device::VULKAN>;
+template struct NarrowImpl<Device::VULKAN>;
 
 }
 

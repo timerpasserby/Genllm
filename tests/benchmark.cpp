@@ -18,7 +18,7 @@ double now_sec() {
 int main(int argc, char** argv) {
     DeviceManager::instance().print_devices();
 
-    const char* model_path = argc > 1 ? argv[1] : "models/Qwen3-4B-BF16.gguf";
+    const char* model_path = argc > 1 ? argv[1] : "weights/Qwen3-4B-BF16.gguf";
     int gen_tokens = argc > 2 ? std::stoi(argv[2]) : 1024;
 
     GGUFParser parser(model_path);

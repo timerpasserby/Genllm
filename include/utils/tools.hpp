@@ -62,7 +62,16 @@ constexpr const char* COLOR_CYAN   = "\033[36m";
             std::cout << "\nExecution time: " << ms / (60.0 * 60.0 * 1000.0) << "h" << COLOR_RESET << std::endl; \
         }                                                                           \
     } while (0)
-
+    
+#ifdef BACKEND_CUDA
+#define CUDA_CHECK(expr_to_check) do {\
+    cudaError_t result = expr_to_check;\
+    if(result != cudaSuccess)\
+    {\
+        fprintf(stderr,"CUDA Runtime Error: %s:%i:%d = %s\n",__FILE__,__LINE__,result,cudaGetErrorString(result));\
+    }\
+} while(0)
+#endif
 
 namespace ops{
 
@@ -294,3 +303,4 @@ namespace ops{
         );
     }
 }
+

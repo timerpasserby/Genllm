@@ -93,8 +93,6 @@ std::unique_ptr<ComputeGraph> Qwen3Model::build_graph(const GGUFInfo& info){
     // LM Head: [B, seq_len, hidden_size] @ [vocab_size, hidden_size] -> [B, seq_len, vocab_size]
     Tensor* logits = OpFactory::linear(final_norm,embd_weight_info,"logits",config_.num_layers,true);
     
-    logits->type = TensorType::TENSOR_TYPE_OUTPUT; // 标记为输出张量
-    
     // ========== Step 3: 从 logits 反向收集，构建 ComputeGraph ==========
     auto graph = std::make_unique<ComputeGraph>();
     graph->build_from_outputs({logits});

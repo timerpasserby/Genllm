@@ -15,9 +15,9 @@ constexpr auto operator<=>(Device lhs, Device rhs) noexcept {
 }
 enum class TensorType : uint8_t {
     TENSOR_TYPE_UNKNOWN = 0,
-    // [静态]   只需计算/加载一次，整个推理过程中保持不变
+    // [静态/动态修改]      整个推理过程中保持不变或是缓存的历史信息
     TENSOR_TYPE_WEIGHT,                   // 模型权重 (如 attn_q.weight, ffn_down.weight)
-    TENSOR_TYPE_CACHE,                    // 预计算缓存 (如 RoPE cos/sin 表)
+    TENSOR_TYPE_CACHE,                    // 计算缓存 (如 RoPE cos/sin 表,运行时缓存的固定大小的tensor)
     TENSOR_TYPE_KV_CACHE,                 // KV Cache (跨 step 复用，特殊管理)
     // [动态] 每轮推理都需要计算/更新
     TENSOR_TYPE_INPUT,                    // 用户输入 (如 input_ids, position_ids)
@@ -80,12 +80,10 @@ enum class GGUFType : uint32_t {
 enum class OperationType:uint8_t {
     OP_TYPE_NONE         ,
     OP_TYPE_MEMCPY       ,
-    OP_TYPE_DUP          ,
     OP_TYPE_ADD          ,
     OP_TYPE_SUB          ,
     OP_TYPE_MUL          ,
     OP_TYPE_DIV          ,
-    OP_TYPE_SCALE        ,
     OP_TYPE_MAT_MUL      ,
     OP_TYPE_TRANSPOSE    ,
     OP_TYPE_RESHAPE      ,
@@ -99,17 +97,10 @@ enum class OperationType:uint8_t {
     OP_TYPE_GELU         ,
     OP_TYPE_SILU         ,
     OP_TYPE_RELU         ,
-    OP_TYPE_POOL_2D      ,
-    OP_TYPE_UPSCALE      ,
-    OP_TYPE_PAD          ,
-    OP_TYPE_UNPAD        ,
-    OP_TYPE_PLACEHOLDER  ,
     OP_TYPE_EMBEDDING    ,
     OP_TYPE_LINEAR       ,
     OP_TYPE_APPLY_ROPE   ,
-    OP_TYPE_TOKENIZE     ,
     OP_TYPE_ROPE_CACHE   ,
-    OP_TYPE_CONV2D       ,
     OP_TYPE_FLASH_ATTN   ,
     OP_TYPE_PAGED_ATTN   ,
     OP_TYPE_CAUSAL_CONV1D,
@@ -197,12 +188,10 @@ inline size_t data_type_size(DataType dtype) noexcept {
 inline std::string operation_type_to_string(OperationType op) {
     switch(op){
         case OperationType::OP_TYPE_NONE:          return "None";
-        case OperationType::OP_TYPE_DUP:           return "Dup";
         case OperationType::OP_TYPE_ADD:           return "Add";
         case OperationType::OP_TYPE_SUB:           return "Sub";
         case OperationType::OP_TYPE_MUL:           return "Mul";
         case OperationType::OP_TYPE_DIV:           return "Div";
-        case OperationType::OP_TYPE_SCALE:         return "Scale";
         case OperationType::OP_TYPE_MAT_MUL:       return "MatMul";
         case OperationType::OP_TYPE_TRANSPOSE:     return "Transpose";
         case OperationType::OP_TYPE_RESHAPE:       return "Reshape";
@@ -216,18 +205,11 @@ inline std::string operation_type_to_string(OperationType op) {
         case OperationType::OP_TYPE_GELU:          return "GELU";
         case OperationType::OP_TYPE_SILU:          return "SiLU";
         case OperationType::OP_TYPE_RELU:          return "ReLU";
-        case OperationType::OP_TYPE_POOL_2D:       return "Pool2D";
-        case OperationType::OP_TYPE_UPSCALE:       return "Upscale";
-        case OperationType::OP_TYPE_PAD:           return "Pad";
-        case OperationType::OP_TYPE_UNPAD:         return "Unpad";
         case OperationType::OP_TYPE_MEMCPY:        return "Memcpy";
-        case OperationType::OP_TYPE_PLACEHOLDER:   return "Placeholder";
         case OperationType::OP_TYPE_EMBEDDING:     return "Embedding";
         case OperationType::OP_TYPE_LINEAR:        return "Linear";
         case OperationType::OP_TYPE_APPLY_ROPE:    return "Rope";
-        case OperationType::OP_TYPE_TOKENIZE:      return "Tokenize";
         case OperationType::OP_TYPE_ROPE_CACHE:    return "RopeCache";
-        case OperationType::OP_TYPE_CONV2D:        return "Conv2D";
         case OperationType::OP_TYPE_FLASH_ATTN:    return "FlashAttn";
         case OperationType::OP_TYPE_PAGED_ATTN:    return "PagedAttn";
         case OperationType::OP_TYPE_CAUSAL_CONV1D: return "CausalConv1D";

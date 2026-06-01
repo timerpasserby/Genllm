@@ -1,4 +1,5 @@
 
+#include "tools.hpp"
 #include <vector>
 #include <print>
 #include <cstring>
@@ -151,6 +152,7 @@ void MemoryManager::load_weights(GGUFParser& parser, const ComputeGraph& graph) 
             entry.tensor->data = block.ptr;
             entry.tensor->offset = block.offset;
             entry.tensor->device_handle = block.device_handle;
+            ops::println(entry.tensor);
         }
     }
 

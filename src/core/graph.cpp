@@ -120,6 +120,9 @@ ComputeGraph& ComputeGraph::operator=(ComputeGraph&& other) noexcept {
 
 void ComputeGraph::build_from_outputs(std::initializer_list<Tensor*> outputs) {
     this->clear();
+    for(auto* t:outputs){
+        t->type = TensorType::TENSOR_TYPE_OUTPUT; // 必须标记上
+    }
     this->external_outputs_.assign(outputs);
     this->reverse_bfs_collect(external_outputs_);
     this->topological_sort();

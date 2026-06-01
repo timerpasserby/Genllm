@@ -11,13 +11,16 @@ int main() {
 
     DeviceManager::instance().print_devices();
 
-    GGUFParser parser("models/Qwen3-0.6B-BF16.gguf");
+    GGUFParser parser("weights/Qwen3.5-0.8B-BF16.gguf");
 
     // parser.info().print_info();
 
     std::unique_ptr<ModelBase> model = ModelFactory::CreateFromGGUF(parser.info());
 
     auto graph = model->build_graph(parser.info()); // 目前是batch固定1，seq_len动态的。
+
+    graph->export_dot("docs/qwen35-graph.dot");
+    return 0;
 
     GraphScheduler::Config sched_cfg{
         .vocab_size = model->vocab_size(),
@@ -33,7 +36,7 @@ int main() {
 
     scheduler.schedule(DeviceManager::instance().get_devices());
 
-    scheduler.export_dot("qwen3-graph.dot");
+    // scheduler.export_dot("docs/qwen35-graph.dot");
 
     std::unique_ptr<MemoryManager>& manager = scheduler.mmanager();
 

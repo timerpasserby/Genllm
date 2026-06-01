@@ -327,25 +327,20 @@ namespace ops {
         const Tensor* w    = out->src[1]; // bf16
         const Tensor* bias = out->src[2]; // ...
         bool transpose_w = out->op_params[0] == 1;
-
         int64_t batch = x->dims[0];
-
+        assert(transpose_w == true);
         assert(batch == 1);
-
         dtype::dispatch(w->dtype, [&]<DataType D_w>() {
             using Tw = dtype::type_t<D_w>;
             auto* op = static_cast<Tw*>(out->data);
             auto* xp = static_cast<const Tw*>(x->data);
             auto* wp = static_cast<const Tw*>(w->data);
             auto* bp = bias && bias->data ? static_cast<const Tw*>(bias->data) : nullptr;
-            if(transpose_w){ // 尽管在数学上需要先将w进行转置，但是我们在具体实践中不要。
-                int64_t M    = x->dims[1]; // M
-                int64_t N    = w->dims[1]; // N
-                int64_t K    = w->dims[0]; // K
-                linear<Tw>(op, xp, wp, M, N, K, bp);
-            }else{
-                throw std::runtime_error("Linear transpose = false not impl");
-            }
+
+            int64_t M    = x->dims[1]; // M
+            int64_t N    = x->dims[2]; // N
+            int64_t K    = w->dims[0]; // K
+            linear<Tw>(op, xp, wp, M, N, K, bp);
         });
     }
 

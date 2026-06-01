@@ -1,7 +1,8 @@
 import torch
+
+from shell.models.ops import compute_rope_cos_sin
+from models.Qwen3 import Qwen3Config, Qwen3Model
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from model import Qwen3Config, Qwen3Model
-from ops import compute_rope_cos_sin
 
 MODEL_NAME = "Qwen/Qwen3-0.6B"
 
@@ -44,7 +45,7 @@ def load_weights_from_hf(model: Qwen3Model, hf_model):
 
 if __name__ == "__main__":
     # 1. 加载配置
-    config = Qwen3Config("models/qwen3-0.6b-bf16.yaml")
+    config = Qwen3Config("weights/qwen3-0.6b-bf16.yaml")
     print(f"Config: hidden={config.hidden_size}, layers={config.num_layers}, "
           f"heads={config.num_heads}/{config.num_kv_heads}, vocab={config.vocab_size}")
 

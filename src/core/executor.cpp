@@ -1,4 +1,5 @@
 
+#include "tensor.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -8,6 +9,7 @@
 #include <cstring>
 #include <algorithm>
 #include <random>
+#include <vector>
 
 #ifdef BACKEND_CUDA
 #include <cuda_runtime.h>
@@ -49,19 +51,33 @@ Executor::Executor(GraphScheduler& scheduler)
             dev_id_map_[dev].push_back(dev_id);
         }
     }
-
+    // 为所有的TENSOR_TYPE_CACHE节点分配空间
+    std::vector<Tensor*> all_cache_tensor;
+    for (auto* t : graph_.get_all_tensors()) {
+        // 只要TENSOR_TYPE_CACHE && OP_TYPE_NONE
+        if(t->type != TensorType::TENSOR_TYPE_CACHE) continue;
+        if(t->op_type != OperationType::OP_TYPE_NONE) continue;
+        all_cache_tensor.push_back(t);
+    }
+    std::sort(all_cache_tensor.begin(),all_cache_tensor.end(),[](Tensor* a,Tensor* b){
+        return a->layer_id < b->layer_id;
+    });
+    for(auto* t:all_cache_tensor){
+        auto dev_id = scheduler_.get_device_id(t->layer_id);
+        this->allocate_output(t,dev_id);
+    }
     // 从 execution_levels_ 按 device_id 分组：CACHE → persistent_layers_，其余 → step_layers_
     std::map<int, LayerGroup> persistent_map, step_map;
     for (const auto& level : graph_.get_execution_levels()) {
         for (Tensor* t : level) {
-            if (!t->is_computed()) continue;
+            if (!t->is_computed()) 
+                continue;
             int32_t dev_id = scheduler_.get_device_id(t->layer_id);
-            auto& grp = (t->type == TensorType::TENSOR_TYPE_CACHE)
-                            ? persistent_map[dev_id]
-                            : step_map[dev_id];
+            auto& grp = (t->type == TensorType::TENSOR_TYPE_CACHE) ? persistent_map[dev_id] : step_map[dev_id];
             grp.device_id = dev_id;
             grp.tensors.push_back(t);
-            if (grp.layer_id < 0) grp.layer_id = t->layer_id;
+            if (grp.layer_id < 0) 
+                grp.layer_id = t->layer_id;
         }
     }
     for (auto& [did, grp] : persistent_map)
@@ -90,25 +106,24 @@ void Executor::forward() {
     // Phase 1: persistent ops（rope_cos/sin）
     if (!this->persistent_computed_) {
         for (const auto& grp : persistent_layers_) {
-        #ifdef BACKEND_VULKAN
+            #ifdef BACKEND_VULKAN
             auto& ctx = VulkanContext::get();
             ctx.beginRecording(grp.device_id);
-        #endif
+            #endif
             for (Tensor* t : grp.tensors) {
                 this->execute_tensor(t, grp.device_id);
             }
-
-        #ifdef BACKEND_VULKAN
+            #ifdef BACKEND_VULKAN
             ctx.endRecordingAndWait(grp.device_id);
             ctx.cleanupPendingFrees(grp.device_id);
             ctx.cleanupPendingStagingBuffers(grp.device_id);
-        #endif
+            #endif
         }
-        for (auto&& [dev, ids] : dev_id_map_) {
+        for (auto&& [dev, ids] : this->dev_id_map_) {
             for(int id : ids){
                 DevicePools* pools = memory_.get(dev, id);
                 if (pools && pools->activation) {
-                    persistent_cursor_[dev] = pools->activation->used();
+                    persistent_cursor_[dev] = pools->activation->used(); // 获取到当前使用了多少的激活内存/显存
                 }
             }
         }
@@ -131,6 +146,7 @@ void Executor::forward() {
             }
             prev_layer = t->layer_id;
             this->execute_tensor(t, step_layers_[i].device_id); // 内部会为t申请空间
+            // ops::println(t);
         }
         if (i + 1 < step_layers_.size()) {
             this->reset_step_activations(); // 收尾
@@ -190,9 +206,9 @@ std::vector<int32_t> Executor::generate(
 }
 
 void Executor::prefill(const std::vector<int32_t>& token_ids) {
-    this->is_prefill_ = true;
     this->seq_pos_ = 0;
-    for (auto* t : apply_rope_tensors_) {
+    this->is_prefill_ = true;
+    for (auto* t : this->apply_rope_tensors_) {
         t->op_params[2] = 0;
     }
     this->resolve_dims(1, static_cast<int64_t>(token_ids.size()));
@@ -204,9 +220,6 @@ void Executor::prefill(const std::vector<int32_t>& token_ids) {
 void Executor::decode_step(std::vector<int32_t> token_ids) {
     this->is_prefill_ = false;
     this->resolve_dims(1, token_ids.size());
-    // for (auto* t : apply_rope_tensors_) {
-    //     t->op_params[2] = static_cast<float>(this->seq_pos_);
-    // }
     this->bind_input("input_ids", token_ids.data(), sizeof(int32_t) * token_ids.size());
     this->forward();
     ++this->seq_pos_;
@@ -214,7 +227,7 @@ void Executor::decode_step(std::vector<int32_t> token_ids) {
 void Executor::decode_step(int32_t token_id) {
     this->is_prefill_ = false;
     this->resolve_dims(1, 1);
-    for (auto* t : apply_rope_tensors_) {
+    for (auto* t : this->apply_rope_tensors_) {
         t->op_params[2] = static_cast<float>(this->seq_pos_);
     }
     this->bind_input("input_ids", &token_id, sizeof(int32_t));
@@ -452,8 +465,7 @@ void Executor::allocate_output(Tensor* t,int32_t dev_id ) {
 void Executor::execute_view(Tensor* t) {
     Tensor* src = t->src[0];
     if (!src || (!src->data && src->device_handle == 0)) {
-        throw std::runtime_error(std::format(
-            "Executor::view: source of '{}' has no data", t->name));
+        throw std::runtime_error(std::format("Executor::view: source of '{}' has no data", t->name));
     }
     t->data = src->data;
     t->offset = src->offset;
@@ -462,30 +474,36 @@ void Executor::execute_view(Tensor* t) {
 
 void Executor::dispatch_kernel(Tensor* t,int32_t dev_id) {
     switch (t->op_type) {
-        case OperationType::OP_TYPE_RESHAPE:        kernel::reshape(t, dev_id); break;
-        case OperationType::OP_TYPE_VIEW:
-        case OperationType::OP_TYPE_TRANSPOSE:      return;
-        case OperationType::OP_TYPE_PERMUTE:        kernel::permute(t, dev_id); break;
-        case OperationType::OP_TYPE_MEMCPY:         kernel::memcpy(t, dev_id); break;
+        case OperationType::OP_TYPE_NONE:           break;
+        case OperationType::OP_TYPE_MEMCPY:         kernel::memcpy(t, dev_id);  break;
         case OperationType::OP_TYPE_ADD:            kernel::add(t, dev_id);     break;
         case OperationType::OP_TYPE_SUB:            kernel::sub(t, dev_id);     break;
         case OperationType::OP_TYPE_MUL:            kernel::mul(t, dev_id);     break;
         case OperationType::OP_TYPE_DIV:            kernel::div(t, dev_id);     break;
-        case OperationType::OP_TYPE_RMS_NORM:       kernel::rms_norm(t, dev_id);   break;
-        case OperationType::OP_TYPE_LAYER_NORM:     kernel::layer_norm(t, dev_id); break;
-        case OperationType::OP_TYPE_MAT_MUL:        kernel::matmul(t, dev_id);     break;
-        case OperationType::OP_TYPE_LINEAR:         kernel::linear(t, dev_id);     break;
-        case OperationType::OP_TYPE_SILU:           kernel::silu(t, dev_id);  break;
-        case OperationType::OP_TYPE_GELU:           kernel::gelu(t, dev_id);  break;
-        case OperationType::OP_TYPE_RELU:           kernel::relu(t, dev_id);  break;
-        case OperationType::OP_TYPE_SOFTMAX:        kernel::softmax(t, dev_id);      break;
-        case OperationType::OP_TYPE_PAGED_ATTN:     kernel::paged_attention(t, dev_id);          break;
-        case OperationType::OP_TYPE_FLASH_ATTN:     kernel::flash_attention(t, dev_id);    break;
-        case OperationType::OP_TYPE_EMBEDDING:      kernel::embedding(t, dev_id);  break;
-        case OperationType::OP_TYPE_APPLY_ROPE:     kernel::apply_rope(t, dev_id); break;
+        case OperationType::OP_TYPE_MAT_MUL:        kernel::matmul(t, dev_id);  break;
+        case OperationType::OP_TYPE_TRANSPOSE:      break;
+        case OperationType::OP_TYPE_RESHAPE:        kernel::reshape(t, dev_id); break;
+        case OperationType::OP_TYPE_PERMUTE:        kernel::permute(t, dev_id); break;
+        case OperationType::OP_TYPE_VIEW:           break;
         case OperationType::OP_TYPE_CONCAT:         kernel::concat(t, dev_id);  break;
         case OperationType::OP_TYPE_REPEAT:         kernel::repeat(t, dev_id);  break;
-        case OperationType::OP_TYPE_ROPE_CACHE:     kernel::rope_cache(t, dev_id); break;
-        default:   throw std::runtime_error(std::format("Executor: unhandled op_type '{}' for tensor '{}'",operation_type_to_string(t->op_type), t->name));
+        case OperationType::OP_TYPE_SOFTMAX:        kernel::softmax(t, dev_id);     break;
+        case OperationType::OP_TYPE_RMS_NORM:       kernel::rms_norm(t, dev_id);    break;
+        case OperationType::OP_TYPE_LAYER_NORM:     kernel::layer_norm(t, dev_id);  break;
+        case OperationType::OP_TYPE_GELU:           kernel::gelu(t, dev_id);        break;
+        case OperationType::OP_TYPE_SILU:           kernel::silu(t, dev_id);        break;
+        case OperationType::OP_TYPE_RELU:           kernel::relu(t, dev_id);        break;
+        case OperationType::OP_TYPE_SIGMOID:        kernel::sigmoid(t, dev_id);     break;
+        case OperationType::OP_TYPE_EMBEDDING:      kernel::embedding(t, dev_id);   break;
+        case OperationType::OP_TYPE_LINEAR:         kernel::linear(t, dev_id);      break;
+        case OperationType::OP_TYPE_APPLY_ROPE:     kernel::apply_rope(t, dev_id);  break;
+        case OperationType::OP_TYPE_ROPE_CACHE:     kernel::rope_cache(t, dev_id);  break;
+        case OperationType::OP_TYPE_FLASH_ATTN:     kernel::flash_attention(t, dev_id);     break;
+        case OperationType::OP_TYPE_PAGED_ATTN:     kernel::paged_attention(t, dev_id);     break;
+        case OperationType::OP_TYPE_CAUSAL_CONV1D:  kernel::causal_conv1d(t, dev_id);       break;
+        case OperationType::OP_TYPE_NARROW:         kernel::narrow(t, dev_id);      break;
+        case OperationType::OP_TYPE_SSM_SCAN:       kernel::ssm_scan(t, dev_id);    break;
+        default:   
+            throw std::runtime_error(std::format("Executor: unhandled op_type '{}' for tensor '{}'",operation_type_to_string(t->op_type), t->name));
     }
 }

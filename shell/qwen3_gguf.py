@@ -1,8 +1,8 @@
 import yaml
 import struct
-from transformers import AutoTokenizer
-from model import Qwen3Config, Qwen3Model
 from gguf import GGUFTorchLoader
+from transformers import AutoTokenizer
+from models.Qwen3 import Qwen3Config, Qwen3Model
 
 
 def _build_tensor_list(yaml_path: str) -> list:
@@ -75,7 +75,7 @@ def _build_tensor_list(yaml_path: str) -> list:
 
 if __name__ == "__main__":
 
-    config_path = "models/qwen3-0.6b-bf16.yaml"
+    config_path = "weights/qwen3-0.6b-bf16.yaml"
 
 
     config = Qwen3Config(config_path)

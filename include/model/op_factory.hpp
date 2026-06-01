@@ -202,15 +202,13 @@ struct OpFactory {
         OpFactory::compute_strides(t);
         return t;
     }
-    // narrow: take a slice along one dimension (view, no copy)
     // op_params: [0]=dim, [1]=start, [2]=size
-    static Tensor* narrow(Tensor* input, int dim, int64_t start, int64_t size,
-                          const std::string& name = "", int32_t layer_id = -1){
+    static Tensor* narrow(Tensor* input, int dim, int64_t start, int64_t size,const std::string& name = "", int32_t layer_id = -1){
         Tensor* t = new Tensor;
         t->name = name;
         t->layer_id = layer_id;
         t->dtype = input->dtype;
-        t->type = TensorType::TENSOR_TYPE_VIEW;
+        t->type = TensorType::TENSOR_TYPE_ACTIVATION;
         t->op_type = OperationType::OP_TYPE_NARROW;
         std::copy(input->dims.begin(), input->dims.end(), t->dims.begin());
         t->dims[dim] = size;
@@ -557,12 +555,13 @@ struct OpFactory {
         LOG_ERROR(std::format("Tensor not found: {}", name));
         throw std::runtime_error(std::format("Tensor not found: {}", name));
     }
-        // ──────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────
     // causal_conv1d: 因果一维卷积 (Mamba2 输入投影后)
+    // src[0]=input, src[1]=weight, src[2]=conv_state (CACHE, decode用)
     // ──────────────────────────────────────────────────────────────────
     static Tensor* causal_conv1d(
-        Tensor* input,                  // [B, L, D_inner]
-        const TensorInfo* weight_info,  // [kernel, D_inner] GGUF: [4, 6144]
+        Tensor* input,
+        const TensorInfo* weight_info,
         int kernel_size,
         const std::string& name = "",
         int32_t layer_id = -1
@@ -572,29 +571,46 @@ struct OpFactory {
         t->layer_id = layer_id;
         t->type = TensorType::TENSOR_TYPE_ACTIVATION;
         t->dtype = input->dtype;
-        t->op_type = OperationType::OP_TYPE_CAUSAL_CONV1D; // ⚠️ 需在枚举中定义
-        
+        t->op_type = OperationType::OP_TYPE_CAUSAL_CONV1D;
+
         // 输出形状同输入 (causal padding = kernel-1, stride=1)
         std::copy(input->dims.begin(), input->dims.end(), t->dims.begin());
-        
+
         t->src[0] = input;
         t->src[1] = OpFactory::weight_placeholder(weight_info, weight_info->name, layer_id);
+
+        // conv_state: 存最近 (kernel_size-1) 行输入，用于 decode 阶段
+        int64_t d_inner = 0;
+        for (int i = TENSOR_MAX_DIMS - 1; i >= 0; --i) {
+            if (input->dims[i] != 0) { d_inner = input->dims[i]; break; }
+        }
+        t->src[2] = OpFactory::placeholder(
+            input->dtype, TensorType::TENSOR_TYPE_CACHE,
+            {1, static_cast<int64_t>(kernel_size - 1), d_inner},
+            name.empty() ? "conv_state" : name + "_state", layer_id
+        );
+
         t->op_params[0] = static_cast<float>(kernel_size);
-        
+
         OpFactory::compute_strides(t);
         return t;
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // ssm_scan: Mamba2 Selective Scan / Chunk Scan 抽象节点
+    // ssm_scan: Gated Delta Rule 线性注意力 (Qwen3.5 SSM 层)
+    // src[0]=conv_act [B,L,3*E], src[1]=A_log [H], src[2]=b_proj [B,L,H],
+    // src[3]=a_proj [B,L,H], src[4]=dt_bias [H], src[5]=state [1,H,D,D] (CACHE)
+    // op_params[0]=num_heads, op_params[1]=head_dim
     // ──────────────────────────────────────────────────────────────────
     static Tensor* ssm_scan(
-        Tensor* input,                  // [B, L, D_inner] (conv_out)
-        const TensorInfo* a_info,       // ssm_a
-        const TensorInfo* alpha_info,   // ssm_alpha (B分支)
-        const TensorInfo* beta_info,    // ssm_beta  (C分支)
-        const TensorInfo* dt_info,      // ssm_dt.bias
+        Tensor* input,                  // conv_act [B, L, 3*E] (Q+K+V after silu)
+        const TensorInfo* a_info,       // ssm_a weight [H] (A_log)
+        Tensor* b_proj,                 // b projection [B, L, H] (beta logit)
+        Tensor* a_proj,                 // a projection [B, L, H] (alpha/dt)
+        const TensorInfo* dt_info,      // ssm_dt.bias weight [H]
         int64_t output_inner_size = 0,  // 0=与输入相同，否则覆盖最后一维
+        int64_t num_heads = 0,          // H, e.g. 16
+        int64_t head_dim = 0,           // D, e.g. 128
         const std::string& name = "",
         int32_t layer_id = -1
     ){
@@ -606,8 +622,11 @@ struct OpFactory {
         t->op_type = OperationType::OP_TYPE_SSM_SCAN;
 
         std::copy(input->dims.begin(), input->dims.end(), t->dims.begin());
-        if (output_inner_size > 0) {
-            // 找最后一个非零维度并覆盖
+        if (num_heads > 0 && head_dim > 0) {
+            // Output [B, seq, H, D] so subsequent rms_norm normalizes per-group over D
+            t->dims[2] = num_heads;
+            t->dims[3] = head_dim;
+        } else if (output_inner_size > 0) {
             for (int i = TENSOR_MAX_DIMS - 1; i >= 0; --i) {
                 if (t->dims[i] != 0) {
                     t->dims[i] = output_inner_size;
@@ -615,14 +634,23 @@ struct OpFactory {
                 }
             }
         }
-        
+
         t->src[0] = input;
         t->src[1] = OpFactory::weight_placeholder(a_info, a_info->name, layer_id);
-        t->src[2] = OpFactory::weight_placeholder(alpha_info, alpha_info->name, layer_id);
-        t->src[3] = OpFactory::weight_placeholder(beta_info, beta_info->name, layer_id);
+        t->src[2] = b_proj;
+        t->src[3] = a_proj;
         t->src[4] = OpFactory::weight_placeholder(dt_info, dt_info->name, layer_id);
-        
-        // op_params 预留：后端可从 weight shape 推导 state_dim / expand，此处暂不硬编码
+
+        // ssm_state: Gated Delta Rule 的 2D 外积矩阵状态 [1, H, D, D]
+        t->src[5] = OpFactory::placeholder(
+            DataType::GGML_TYPE_F32, TensorType::TENSOR_TYPE_CACHE,
+            {1, num_heads, head_dim, head_dim},
+            name.empty() ? "ssm_state" : name + "_state", layer_id
+        );
+
+        t->op_params[0] = static_cast<float>(num_heads);
+        t->op_params[1] = static_cast<float>(head_dim);
+
         OpFactory::compute_strides(t);
         return t;
     }

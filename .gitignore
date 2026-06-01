@@ -3,6 +3,7 @@ bin/
 build/
 dist/
 models/
+weights/
 shell/__pycache__/
 tutorial/
 temp/

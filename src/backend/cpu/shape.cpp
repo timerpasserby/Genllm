@@ -124,8 +124,42 @@ namespace ops {
         throw std::runtime_error("cpu::repeat not implemented");
     }
 
+    void NarrowImpl<Device::CPU>::execute(Tensor* out, int32_t dev_id) {
+        const Tensor* x = out->src[0];
+        int32_t dim   = static_cast<int32_t>(out->op_params[0]);
+        int64_t start = static_cast<int64_t>(out->op_params[1]);
+        int64_t size  = static_cast<int64_t>(out->op_params[2]);
+        size_t elem_sz = data_type_size(out->dtype);
+
+        // 计算窄维度之前的总元素数（batch 维度的乘积）
+        int64_t outer = 1;
+        for (int d = 0; d < dim; ++d)
+            if (x->dims[d] > 0) outer *= x->dims[d];
+
+        // 窄维度及其之后每个 block 的字节数
+        size_t src_block_bytes = 1;
+        for (int d = dim; d < TENSOR_MAX_DIMS && x->dims[d] > 0; ++d)
+            src_block_bytes *= x->dims[d];
+        src_block_bytes *= elem_sz;
+
+        size_t dst_block_bytes = size * elem_sz;
+        size_t copy_offset     = start * elem_sz;
+
+        auto* dst = static_cast<uint8_t*>(out->data);
+        auto* src = static_cast<const uint8_t*>(x->data);
+
+        for (int64_t i = 0; i < outer; ++i) {
+            std::memcpy(
+                dst + i * dst_block_bytes,
+                src + i * src_block_bytes + copy_offset,
+                dst_block_bytes
+            );
+        }
+    }
+
 template struct ReshapeImpl<Device::CPU>;
 template struct PermuteImpl<Device::CPU>;
 template struct ConcatImpl<Device::CPU>;
 template struct RepeatImpl<Device::CPU>;
+template struct NarrowImpl<Device::CPU>;
 }

@@ -34,7 +34,7 @@ public:
     void rebuild_order();
 
     const std::vector<Tensor*>& get_execution_order()  const { return execution_order_; }
-    const std::vector<std::vector<Tensor*>>& get_execution_levels() const { return execution_levels_; }
+    const std::vector<std::vector<Tensor*>>& get_execution_levels() const { return execution_levels_; }// 返回的都是计算节点
     const std::vector<Tensor*>& get_all_tensors()       const { return all_tensors_; }
     const std::vector<Tensor*>& get_external_outputs()  const { return external_outputs_; }
     const std::map<int, std::vector<Tensor*>>& get_layer_groups() const { return layer_groups_; }

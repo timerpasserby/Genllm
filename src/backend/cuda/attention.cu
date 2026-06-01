@@ -1,8 +1,10 @@
 #include <cstddef>
+#include <cstdint>
 #include <stdexcept>
 #include <vector>
 #include "backend/cuda/attention.h"
 
+#include "float16.hpp"
 #include "utils/utils.hpp"
 #include "utils/dtype_traits.hpp"
 #include "core/manager.h"
@@ -82,6 +84,145 @@ void SoftmaxImpl<Device::CUDA>::execute(Tensor* t, int32_t dev_id){
 }
 
 
+#define Br 16
+#define Bc 64
+#define WARP_SIZE 32
+
+// gridDim = (ceil(seq_len / Br),num_q_heads), blockDim = (512)
+__global__ void flash_attention(
+    __half* __restrict__ output,
+    const __half* __restrict__ Q,
+    const __half* __restrict__ K,   // 不要转置它！！！！
+    const __half* __restrict__ V,
+    int32_t seq_len, int32_t head_dim, int32_t num_q_heads,
+    int32_t num_kv_heads, int32_t num_groups, float scale
+) {
+    // 1. 确定头索引
+    int q_head_idx = blockIdx.y;                // 明确当前是哪个查询头，一共是有num_q_heads个
+    int kv_head_idx = q_head_idx / num_groups;  // 明确当前是哪个kv头，这样处理是为了适配GQA.多个kv头共用一个q头的情况。
+    int q_block_start = blockIdx.x * Br;        // 这个block处理的Q起始行，一共是有 seq/Br 个分块的
+
+    // 2. 指针偏移
+    const __half* Q_ptr = Q + q_head_idx * seq_len * head_dim;
+    const __half* K_ptr = K + kv_head_idx * seq_len * head_dim;
+    const __half* V_ptr = V + kv_head_idx * seq_len * head_dim;
+    __half*     out_ptr = output + q_head_idx * seq_len * head_dim;
+
+
+    // 3. 动态共享内存布局
+    extern __shared__ float smem[];                            // 总大小需在启动时指定
+    __half* Q_block = (__half*)smem;                           // [Br, head_dim]
+    __half* K_block = Q_block + Br * head_dim;                 // [Bc, head_dim]
+    __half* V_block = K_block + Bc * head_dim;                 // [Bc, head_dim]
+    float* N_acc = (float*)(V_block + Bc * head_dim);          // [Br, head_dim]
+    float* D_acc = N_acc + Br * head_dim;                      // [Br]
+    float* m = D_acc + Br;                                     // [Br]
+
+    // 4. 线程与 warp 索引
+    int tid = threadIdx.x;                  // 确定当前线程: 0...511
+    int warp_id = tid / WARP_SIZE;          // 0..511 / 32 = 0..15 ,确定该线程属于哪个 warp（0 到 15）
+    int lane_id = tid % WARP_SIZE;          // 0..31,确定该线程在 warp 内的位置（0 到 31）
+
+    int q_row = q_block_start + warp_id;    // 确定当前是处理哪行，起始+局部偏移（用warpid）
+
+    // 5. 从全局显存里面加载切片到加SM的共享内存里面(Q_block,由所有线程协作),每个SM都要加载
+    for (int i = tid; i < Br * head_dim; i += blockDim.x) {
+        int row = i / head_dim;
+        int col = i % head_dim;
+        int global_row = q_block_start + row;
+        if (global_row < seq_len) {
+            Q_block[i] = Q_ptr[global_row * head_dim + col];
+        } else {
+            Q_block[i] = __float2half(0.0f);
+        }
+    }
+    __syncthreads();
+
+    // 6. 初始化统计量（仅本行的warp负责初始化自己的状态）
+    if (warp_id < Br && q_row < seq_len) {
+        m[warp_id] = -INFINITY;
+        D_acc[warp_id] = 0.0f;
+        for (int d = lane_id; d < head_dim; d += WARP_SIZE) {
+            N_acc[warp_id * head_dim + d] = 0.0f;
+        }
+    }
+    __syncthreads();
+
+    // 7. 外层循环遍历所有 KV 块
+    for (int kv_start = 0; kv_start < seq_len; kv_start += Bc) {
+        // 加载 K_block 和 V_block 到共享内存（所有线程协作）
+        for (int i = tid; i < Bc * head_dim; i += blockDim.x) {
+            int row = i / head_dim;
+            int col = i % head_dim;
+            int global_row = kv_start + row;
+            if (global_row < seq_len) {
+                K_block[i] = K_ptr[global_row * head_dim + col];
+                V_block[i] = V_ptr[global_row * head_dim + col];
+            } else {
+                K_block[i] = __float2half(0.0f);
+                V_block[i] = __float2half(0.0f);
+            }
+        }
+        __syncthreads();
+
+        // 16个warp分别处理16行
+        if (warp_id < Br && q_row < seq_len) {
+            // 计算当前 warp 负责的 query 行与 K_block 的点积，得到 Bc 个分数; [1,head_dim] @ [Bc,head_dim].T = [1,Bc]
+            float scores[Bc];   // 存到寄存器，可能较大，也可以分块计算
+            // score[j] 是 warp里面所有线程合作计算得到的结果。128/32 = 4,所以是一个线程算4个a*b=c,最后sum(C)
+            for (int j = 0; j < Bc; ++j) {
+                float dot = 0.0f;
+                for (int d = lane_id; d < head_dim; d += WARP_SIZE) {
+                    float q_val = __half2float(Q_block[warp_id * head_dim + d]);
+                    float k_val = __half2float(K_block[j * head_dim + d]);
+                    dot += q_val * k_val;
+                }
+                // warp 内归约求和
+                for (int offset = WARP_SIZE/2; offset > 0; offset >>= 1)
+                    dot += __shfl_xor_sync(0xffffffff, dot, offset);
+                scores[j] = dot * scale;
+            } 
+
+            // 找到当前块内的最大值 row_max
+            float row_max = -INFINITY;
+            for (int j = 0; j < Bc; ++j) 
+                row_max = fmaxf(row_max, scores[j]);
+
+            float old_m = m[warp_id];
+            float new_m = fmaxf(old_m, row_max);
+
+            float old_scale = expf(old_m - new_m);   // 若old_m为 -inf 则 exp(-inf)=0
+            float old_D = 0.0f;
+            for (int j = 0; j < Bc; ++j) {
+                old_D += expf(scores[j] - new_m);
+            }
+            // 更新分母
+            float new_D = D_acc[warp_id] * old_scale + old_D;
+            // 更新分子 N_acc（按维度）
+            for (int d = lane_id; d < head_dim; d += WARP_SIZE) {
+                float acc = N_acc[warp_id * head_dim + d] * old_scale;
+                for (int j = 0; j < Bc; ++j) {
+                    float p = expf(scores[j] - new_m);
+                    float v_val = __half2float(V_block[j * head_dim + d]);
+                    acc += p * v_val;
+                }
+                N_acc[warp_id * head_dim + d] = acc;
+            }
+            // 更新 m 和 D_acc
+            m[warp_id] = new_m;
+            D_acc[warp_id] = new_D;
+        }
+        __syncthreads();
+    } // 结束 KV 块循环
+
+    // 8. 最终归一化并写回输出
+    if (warp_id < Br && q_row < seq_len) {
+        for (int d = lane_id; d < head_dim; d += WARP_SIZE) {
+            float val = N_acc[warp_id * head_dim + d] / D_acc[warp_id];
+            out_ptr[q_row * head_dim + d] = __float2half(val);
+        }
+    }
+}
 template <typename T, int HEAD_DIM=128>
 __global__ void flash_attention_warp_kernel(
     T* __restrict__ out,

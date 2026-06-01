@@ -6,7 +6,7 @@
 // 初始化默认模型注册
 void ModelFactory::init() {
     ModelFactory::RegisterModel<Qwen3Model>("qwen3");
-    RegisterModel<Qwen35Model>("qwen35"); // 暂时未完成
+    ModelFactory::RegisterModel<Qwen35Model>("qwen35"); // 暂时未完成
 }
 
 // 自动初始化

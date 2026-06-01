@@ -24,6 +24,7 @@ namespace kernel {
     OPS_API void silu(Tensor* out, int32_t dev_id = 0);
     OPS_API void gelu(Tensor* out, int32_t dev_id = 0);
     OPS_API void relu(Tensor* out, int32_t dev_id = 0);
+    OPS_API void sigmoid(Tensor* out, int32_t dev_id = 0);
     OPS_API void softmax(Tensor* out, int32_t dev_id = 0);
     OPS_API void embedding(Tensor* out, int32_t dev_id = 0);
     OPS_API void apply_rope(Tensor* out, int32_t dev_id = 0);
@@ -34,6 +35,9 @@ namespace kernel {
     OPS_API void concat(Tensor* out, int32_t dev_id = 0);
     OPS_API void repeat(Tensor* out, int32_t dev_id = 0);
     OPS_API void memcpy(Tensor* out, int32_t dev_id = 0);
+    OPS_API void narrow(Tensor* out, int32_t dev_id = 0);
     OPS_API void rope_cache(Tensor* out, int32_t dev_id = 0);
-    
+    OPS_API void causal_conv1d(Tensor* out, int32_t dev_id = 0);
+    OPS_API void ssm_scan(Tensor* out, int32_t dev_id = 0);
+
 } // namespace kernel
