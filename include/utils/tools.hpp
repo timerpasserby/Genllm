@@ -8,6 +8,7 @@
 #include <format>
 #include <print>
 #include <cstring>
+#include <span>
 #include "tensor.hpp"
 #include "utils/bfloat16.hpp"
 

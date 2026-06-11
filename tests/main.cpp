@@ -51,7 +51,14 @@ int main() {
 
     std::vector<int32_t> tokens = tokenizer.encode(chat_prompt);
 
-    std::println("tokens={}",tokens);
+    {
+        std::string ts;
+        for (size_t i = 0; i < tokens.size(); ++i) {
+            if (i) ts += ", ";
+            ts += std::to_string(tokens[i]);
+        }
+        std::println("tokens=[{}]", ts);
+    }
 
     try {
 

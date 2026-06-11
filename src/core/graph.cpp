@@ -196,7 +196,12 @@ void ComputeGraph::export_dot(const std::string& path) const {
         for(int i = 0; i < t->dims.size(); ++i){
             if(t->dims[i] != 0) real_dims.push_back(t->dims[i]);
         }
-        label += std::format("\\n{}{}",device_to_string(t->device),real_dims);
+        std::string dims_str;
+        for (size_t i = 0; i < real_dims.size(); ++i) {
+            if (i) dims_str += ",";
+            dims_str += std::to_string(real_dims[i]);
+        }
+        label += std::format("\\n{}\\n[{}]", device_to_string(t->device), dims_str);
         if (t->op_type != OperationType::OP_TYPE_NONE)
             label += "\\n" + operation_type_to_string(t->op_type);
         os << std::format("  \"{}\" [fillcolor=\"{}\", label=\"{}\"];\n",dot_id(t), color, label);

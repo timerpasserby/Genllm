@@ -24,7 +24,14 @@ void Qwen35Model::print_info(){
     std::println("  max_seq_len:         {}", config_.max_seq_len);
     std::println("  rope_theta:          {}", config_.rope_theta);
     std::println("  rms_norm_eps:        {}", config_.rms_norm_eps);
-    std::println("  rope_dimension_sections:{}", config_.rope_dimension_sections);
+    {
+        std::string vstr;
+        for (size_t i = 0; i < config_.rope_dimension_sections.size(); ++i) {
+            if (i) vstr += ", ";
+            vstr += std::to_string(config_.rope_dimension_sections[i]);
+        }
+        std::println("  rope_dimension_sections:[{}]", vstr);
+    }
 }
 
 void Qwen35Model::parse_config(const GGUFInfo& info) {

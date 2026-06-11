@@ -28,7 +28,6 @@ endif()
 
 project(
     ${THIS_PROJECT_NAME}
-    LANGUAGES C CXX CUDA
     DESCRIPTION "gguf inference tool"
     VERSION 0.1.0
 )
@@ -50,7 +49,7 @@ if(BACKEND_CUDA)
     find_package(OpenMP REQUIRED COMPONENTS CXX)
     find_package(CUDAToolkit REQUIRED)
 
-    set(CMAKE_CUDA_ARCHITECTURES "native")  # 常见现代GPU架构
+    set(CMAKE_CUDA_ARCHITECTURES "native")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -mavx2 -mf16c -mfma -fopenmp ")
 endif()
 
@@ -279,7 +278,7 @@ if(BUILD_TEST)
            target_link_libraries(${test_name} PRIVATE OpenMP::OpenMP_CXX)
         endif()
         if(BACKEND_VULKAN)
-            target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC ${Vulkan_LIBRARIES})
+            target_link_libraries(${PROJECT_NAME} PUBLIC ${Vulkan_LIBRARIES})
             target_link_libraries(${test_name} PRIVATE OpenMP::OpenMP_CXX)
         endif()
         add_test(NAME ${test_name} COMMAND ${test_name})

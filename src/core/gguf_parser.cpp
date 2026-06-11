@@ -29,8 +29,12 @@ void GGUFInfo::print_info() const {
     std::println("{:<26} {:<8} {}", "名称", "数据类型", "维度");
     std::println("{:-<26} {:-<8} {:-<14}", "", "", "");
     for (const auto& info : tensors_info) {
-        // std::println("(\"{}\",\"{}\",{}),", info.name, data_type_to_string(info.dtype), info.dimensions);
-        std::println("{:<26} {:<8} {}", info.name, data_type_to_string(info.dtype), info.dimensions);
+        std::string dims_str;
+        for (size_t i = 0; i < info.dimensions.size(); ++i) {
+            if (i) dims_str += ", ";
+            dims_str += std::to_string(info.dimensions[i]);
+        }
+        std::println("{:<26} {:<8} [{}]", info.name, data_type_to_string(info.dtype), dims_str);
     }
     std::println("{:-<26} {:-<8} {:-<14}", "", "", "");
 }
